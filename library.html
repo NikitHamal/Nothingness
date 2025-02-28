@@ -8,6 +8,166 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="library.css">
+    <script type="module">
+        import { auth, database } from './firebase-config.js';
+        import { ref, onValue, push, set, remove } from 'https://www.gstatic.com/firebasejs/9.x.x/firebase-database.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check authentication
+            auth.onAuthStateChanged(user => {
+                if (!user) {
+                    window.location.href = 'signin.html';
+                    return;
+                }
+
+                // Load user's collections
+                const collectionsRef = ref(database, `users/${user.uid}/collections`);
+                onValue(collectionsRef, (snapshot) => {
+                    const collections = snapshot.val();
+                    if (collections) {
+                        updateCollections(collections);
+                    }
+                });
+
+                // Load saved articles
+                const savedRef = ref(database, `users/${user.uid}/saved`);
+                onValue(savedRef, (snapshot) => {
+                    const savedArticles = snapshot.val();
+                    if (savedArticles) {
+                        updateSavedArticles(savedArticles);
+                    }
+                });
+
+                // Handle collection creation
+                const createBtn = document.getElementById('createCollectionBtn');
+                const modal = document.getElementById('createCollectionModal');
+                const cancelBtn = document.getElementById('cancelCreate');
+                const confirmBtn = document.getElementById('confirmCreate');
+                const collectionNameInput = document.getElementById('collectionName');
+
+                createBtn.addEventListener('click', () => {
+                    modal.classList.add('active');
+                    collectionNameInput.focus();
+                });
+
+                cancelBtn.addEventListener('click', () => {
+                    modal.classList.remove('active');
+                    collectionNameInput.value = '';
+                });
+
+                confirmBtn.addEventListener('click', async () => {
+                    const name = collectionNameInput.value.trim();
+                    if (name) {
+                        const newCollectionRef = push(collectionsRef);
+                        await set(newCollectionRef, {
+                            name,
+                            createdAt: Date.now(),
+                            articles: []
+                        });
+                        modal.classList.remove('active');
+                        collectionNameInput.value = '';
+                    }
+                });
+
+                // Handle collection menu actions
+                const contextMenu = document.getElementById('collectionMenu');
+                let activeCollection = null;
+
+                document.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('context-menu-trigger')) {
+                        e.preventDefault();
+                        const collectionCard = e.target.closest('.collection-card');
+                        if (collectionCard) {
+                            activeCollection = collectionCard.dataset.id;
+                            contextMenu.style.display = 'block';
+                            contextMenu.style.left = `${e.pageX}px`;
+                            contextMenu.style.top = `${e.pageY}px`;
+                        }
+                    } else if (!e.target.closest('#collectionMenu')) {
+                        contextMenu.style.display = 'none';
+                    }
+                });
+
+                document.getElementById('renameCollection').addEventListener('click', async () => {
+                    if (!activeCollection) return;
+                    const newName = prompt('Enter new collection name:');
+                    if (newName?.trim()) {
+                        const collectionRef = ref(database, `users/${user.uid}/collections/${activeCollection}`);
+                        const snapshot = await get(collectionRef);
+                        if (snapshot.exists()) {
+                            const data = snapshot.val();
+                            await set(collectionRef, { ...data, name: newName.trim() });
+                        }
+                    }
+                    contextMenu.style.display = 'none';
+                });
+
+                document.getElementById('deleteCollection').addEventListener('click', async () => {
+                    if (!activeCollection) return;
+                    if (confirm('Are you sure you want to delete this collection?')) {
+                        const collectionRef = ref(database, `users/${user.uid}/collections/${activeCollection}`);
+                        await remove(collectionRef);
+                    }
+                    contextMenu.style.display = 'none';
+                });
+            });
+
+            function updateCollections(collections) {
+                const collectionsContainer = document.querySelector('#collections.tab-content');
+                if (collectionsContainer) {
+                    collectionsContainer.innerHTML = Object.entries(collections).map(([id, collection]) => `
+                        <div class="collection-card" data-id="${id}">
+                            <div class="collection-info">
+                                <h3>${collection.name}</h3>
+                                <p>${collection.articles?.length || 0} articles</p>
+                            </div>
+                            <button class="context-menu-trigger">⋮</button>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            function updateSavedArticles(articles) {
+                const savedContainer = document.querySelector('#saved.tab-content');
+                if (savedContainer) {
+                    savedContainer.innerHTML = Object.entries(articles).map(([id, article]) => `
+                        <article class="article-card" data-id="${id}">
+                            <div class="article-header">
+                                <span class="tag">${article.author}</span>
+                                <button class="remove-saved" onclick="removeFromSaved('${id}')">
+                                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>
+                                </button>
+                            </div>
+                            <h3>${article.title}</h3>
+                            <p>${article.description}</p>
+                            <span class="save-date">Saved ${formatDate(article.savedAt)}</span>
+                        </article>
+                    `).join('');
+                }
+            }
+
+            function formatDate(timestamp) {
+                const now = Date.now();
+                const diff = now - timestamp;
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                
+                if (days === 0) return 'today';
+                if (days === 1) return 'yesterday';
+                if (days < 7) return `${days} days ago`;
+                if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+                if (days < 365) return `${Math.floor(days / 30)} months ago`;
+                return `${Math.floor(days / 365)} years ago`;
+            }
+
+            window.removeFromSaved = async function(articleId) {
+                const user = auth.currentUser;
+                if (!user) return;
+                
+                const savedRef = ref(database, `users/${user.uid}/saved/${articleId}`);
+                await remove(savedRef);
+            };
+        });
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -24,55 +184,11 @@
         </div>
 
         <div class="tab-content active" id="collections">
-            <div class="collections-grid">
-                <div class="collection-card" data-id="favorites">
-                    <div class="collection-info">
-                        <h3>Favorites</h3>
-                        <p>12 articles</p>
-                    </div>
-                    <button class="collection-menu">
-                        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="currentColor"/></svg>
-                    </button>
-                </div>
-                
-                <div class="collection-card" data-id="meditation">
-                    <div class="collection-info">
-                        <h3>Non-Duality</h3>
-                        <p>8 articles</p>
-                    </div>
-                    <button class="collection-menu">
-                        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="currentColor"/></svg>
-                    </button>
-                </div>
-            </div>
+            <div class="collections-grid"></div>
         </div>
 
         <div class="tab-content" id="saved">
-            <div class="articles-grid">
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Krishnamurti</span>
-                        <button class="remove-saved">
-                            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>
-                        </button>
-                    </div>
-                    <h3>The End of Thought</h3>
-                    <p>Understanding the limitations of thought and discovering what lies beyond...</p>
-                    <span class="save-date">Saved 2 days ago</span>
-                </article>
-                
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Alan Watts</span>
-                        <button class="remove-saved">
-                            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>
-                        </button>
-                    </div>
-                    <h3>The Wisdom of Insecurity</h3>
-                    <p>Exploring the paradox of seeking security in an inherently insecure world...</p>
-                    <span class="save-date">Saved 1 week ago</span>
-                </article>
-            </div>
+            <div class="articles-grid"></div>
         </div>
 
         <div class="modal" id="createCollectionModal">
@@ -102,7 +218,7 @@
                 <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="currentColor"/></svg>
                 <span>Home</span>
             </button>
-            <button class="nav-item" onclick="window.location.href='article.html'">
+            <button class="nav-item" onclick="window.location.href='articles.html'">
                 <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" fill="currentColor"/></svg>
                 <span>Articles</span>
             </button>
@@ -116,6 +232,5 @@
             </button>
         </nav>
     </div>
-    <script src="library.js"></script>
 </body>
 </html> 

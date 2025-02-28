@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Sign In - Nothingness</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="auth.css">
+    <link rel="stylesheet" href="signin.css">
+    <script type="module">
+        import { auth } from './firebase-config.js';
+        import { signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const signinForm = document.getElementById('signinForm');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+
+            // Check if user is already signed in
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    if (!user.emailVerified && user.providerData[0]?.providerId === 'password') {
+                        window.location.href = 'verification.html';
+                    } else {
+                        window.location.href = 'home.html';
+                    }
+                }
+            });
+
+            signinForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                clearMessages();
+
+                try {
+                    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                    const user = userCredential.user;
+
+                    if (!user.emailVerified && user.providerData[0]?.providerId === 'password') {
+                        showSuccess('Sign in successful! Please verify your email.');
+                        setTimeout(() => {
+                            window.location.href = 'verification.html';
+                        }, 1500);
+                    } else {
+                        showSuccess('Sign in successful!');
+                        setTimeout(() => {
+                            window.location.href = 'home.html';
+                        }, 1500);
+                    }
+                } catch (error) {
+                    let message = 'An error occurred during sign in.';
+                    switch (error.code) {
+                        case 'auth/invalid-email':
+                            message = 'Invalid email address.';
+                            break;
+                        case 'auth/user-disabled':
+                            message = 'This account has been disabled.';
+                            break;
+                        case 'auth/user-not-found':
+                            message = 'No account found with this email.';
+                            break;
+                        case 'auth/wrong-password':
+                            message = 'Incorrect password.';
+                            break;
+                        case 'auth/too-many-requests':
+                            message = 'Too many failed attempts. Please try again later.';
+                            break;
+                    }
+                    showError(message);
+                }
+            });
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            }
+
+            function clearMessages() {
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1>Welcome Back</h1>
+            <p class="subtitle">Continue your journey to self-discovery</p>
+
+            <form id="signinForm">
+                <div class="input-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                    <a href="resetpassword.html" class="forgot-password">Forgot Password?</a>
+                </div>
+
+                <div id="errorMessage" class="error-message" style="display: none;"></div>
+                <div id="successMessage" class="success-message" style="display: none;"></div>
+
+                <button type="submit" class="btn-primary">Sign In</button>
+            </form>
+
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="signup.html">Sign Up</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

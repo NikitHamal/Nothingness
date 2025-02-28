@@ -2,105 +2,319 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The End of Thought - Nothingness</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Article - Nothingness</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="article.css">
+    <script type="module">
+        import { auth, database } from './firebase-config.js';
+        import { ref, get, update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('id');
+            
+            if (!postId) {
+                window.location.href = 'home.html';
+                return;
+            }
+
+            // Add loading state
+            document.querySelector('.article-content').classList.add('loading');
+            document.querySelector('.article-content').innerHTML = `
+                <header>
+                    <button class="back-button" onclick="history.back()">
+                        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor"/></svg>
+                    </button>
+                </header>
+                <div class="article-header">
+                    <div class="meta">
+                        <span class="tag loading-skeleton" style="width: 80px; height: 24px;"></span>
+                        <span class="read-time loading-skeleton" style="width: 100px; height: 24px;"></span>
+                    </div>
+                    <h1 class="loading-skeleton"></h1>
+                    <div class="author-info">
+                        <div class="loading-skeleton" style="width: 48px; height: 48px; border-radius: 50%;"></div>
+                        <div class="author-details">
+                            <span class="loading-skeleton" style="width: 120px; height: 20px;"></span>
+                            <span class="loading-skeleton" style="width: 80px; height: 16px;"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p class="loading-skeleton"></p>
+                    <p class="loading-skeleton"></p>
+                    <p class="loading-skeleton"></p>
+                </div>
+            `;
+
+            // Add progress bar
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            document.body.appendChild(progressBar);
+
+            // Update progress bar on scroll
+            window.addEventListener('scroll', () => {
+                const winScroll = document.documentElement.scrollTop;
+                const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+                const scrolled = (winScroll / height) * 100;
+                progressBar.style.width = scrolled + '%';
+            });
+
+            loadPost(postId);
+        });
+
+        const CACHE_DURATION = 1000 * 60 * 5; // 5 minutes cache
+
+        const userCache = new Map();
+
+        function getFromLocalStorage(key) {
+            try {
+                const item = localStorage.getItem(key);
+                if (!item) return null;
+                
+                const { value, timestamp } = JSON.parse(item);
+                if (Date.now() - timestamp > CACHE_DURATION) {
+                    localStorage.removeItem(key);
+                    return null;
+                }
+                return value;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function saveToLocalStorage(key, value) {
+            try {
+                const item = {
+                    value,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem(key, JSON.stringify(item));
+            } catch (error) {
+                console.warn('Error saving to localStorage:', error);
+            }
+        }
+
+        async function fetchUserData(userIds) {
+            const uniqueIds = [...new Set(userIds)].filter(id => !userCache.has(id));
+            
+            if (uniqueIds.length > 0) {
+                // Try to get from localStorage first
+                const cachedUsers = uniqueIds.map(id => {
+                    const cached = getFromLocalStorage(`user_${id}`);
+                    if (cached) {
+                        userCache.set(id, cached);
+                        return id;
+                    }
+                    return null;
+                });
+                
+                const idsToFetch = uniqueIds.filter((id, index) => !cachedUsers[index]);
+                
+                if (idsToFetch.length > 0) {
+                    const userRefs = idsToFetch.map(id => ref(database, `users/${id}`));
+                    const snapshots = await Promise.all(userRefs.map(ref => get(ref)));
+                    
+                    snapshots.forEach((snapshot, index) => {
+                        const userData = snapshot.exists() ? {
+                            displayName: snapshot.val().displayName || 'Anonymous',
+                            avatar: snapshot.val().avatar || './assets/default-avatar.png'
+                        } : {
+                            displayName: 'Anonymous',
+                            avatar: './assets/default-avatar.png'
+                        };
+                        
+                        userCache.set(idsToFetch[index], userData);
+                        saveToLocalStorage(`user_${idsToFetch[index]}`, userData);
+                    });
+                }
+            }
+            
+            return userIds.map(id => userCache.get(id) || {
+                displayName: 'Anonymous',
+                avatar: './assets/default-avatar.png'
+            });
+        }
+
+        async function loadPost(postId) {
+            try {
+                // Try to get from localStorage first
+                const cachedPost = getFromLocalStorage(`post_${postId}`);
+                let post;
+                
+                if (cachedPost) {
+                    post = cachedPost;
+                } else {
+                    const postRef = ref(database, `posts/${postId}`);
+                    const snapshot = await get(postRef);
+                    
+                    if (!snapshot.exists()) {
+                        window.location.href = 'home.html';
+                        return;
+                    }
+                    
+                    post = snapshot.val();
+                    saveToLocalStorage(`post_${postId}`, post);
+                }
+
+                const [userData] = await fetchUserData([post.authorId]);
+                
+                displayPost({
+                    ...post,
+                    authorName: userData.displayName,
+                    authorAvatar: userData.avatar
+                });
+                
+                // Only increment views and load related if not from cache
+                if (!cachedPost) {
+                    await Promise.all([
+                        incrementViews(postId, post.views || 0),
+                        loadRelatedArticles(post.categories?.[0], postId)
+                    ]);
+                } else {
+                    // Load related articles after displaying main content for better performance
+                    loadRelatedArticles(post.categories?.[0], postId);
+                }
+            } catch (error) {
+                console.error('Error loading post:', error);
+            }
+        }
+
+        async function loadRelatedArticles(category, currentPostId) {
+            if (!category) return;
+
+            try {
+                // Try to get from localStorage first
+                const cacheKey = `related_${category}_${currentPostId}`;
+                const cachedRelated = getFromLocalStorage(cacheKey);
+                let relatedArticles;
+
+                if (cachedRelated) {
+                    relatedArticles = cachedRelated;
+                } else {
+                    const postsRef = ref(database, 'posts');
+                    const snapshot = await get(postsRef);
+                    
+                    if (snapshot.exists()) {
+                        relatedArticles = Object.entries(snapshot.val())
+                            .filter(([id, post]) => 
+                                id !== currentPostId && 
+                                post.categories?.[0] === category
+                            )
+                            .slice(0, 3);
+                        
+                        saveToLocalStorage(cacheKey, relatedArticles);
+                    }
+                }
+
+                if (relatedArticles?.length > 0) {
+                    const authorIds = relatedArticles.map(([_, article]) => article.authorId);
+                    const userDataList = await fetchUserData(authorIds);
+                    
+                    const relatedSection = document.createElement('section');
+                    relatedSection.className = 'related-articles';
+                    relatedSection.innerHTML = '<h2>Related Articles</h2><div class="related-grid"></div>';
+                    document.querySelector('.article-content').appendChild(relatedSection);
+
+                    const relatedGrid = relatedSection.querySelector('.related-grid');
+                    
+                    relatedArticles.forEach(([id, article], index) => {
+                        const userData = userDataList[index];
+                        const card = document.createElement('div');
+                        card.className = 'related-card';
+                        card.onclick = () => window.location.href = `article.html?id=${id}`;
+                        
+                        const readTime = Math.ceil(article.content.split(' ').length / 200);
+                        
+                        card.innerHTML = `
+                            <div class="meta">
+                                <span class="tag">${article.categories?.[0] || 'Uncategorized'}</span>
+                                <span class="read-time">${readTime} min read</span>
+                            </div>
+                            <h3>${article.title}</h3>
+                            <div class="author">
+                                <img src="${userData.avatar}" alt="${userData.displayName}" onerror="this.src='./assets/default-avatar.png'">
+                                <span>${userData.displayName}</span>
+                            </div>
+                        `;
+                        
+                        relatedGrid.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading related articles:', error);
+            }
+        }
+
+        function displayPost(post) {
+            document.title = `${post.title} - Nothingness`;
+            
+            const articleContent = document.querySelector('.article-content');
+            const readTime = Math.ceil(post.content.split(' ').length / 200);
+            
+            // Remove loading state
+            articleContent.classList.remove('loading');
+            
+            articleContent.innerHTML = `
+                <header>
+                    <button class="back-button" onclick="history.back()">
+                        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor"/></svg>
+                    </button>
+                </header>
+                
+                <div class="article-header">
+                    <div class="meta">
+                        <span class="tag">${post.categories ? post.categories[0] : 'Uncategorized'}</span>
+                        <span class="read-time">${readTime} min read</span>
+                    </div>
+                    <h1>${post.title}</h1>
+                    <div class="author-info">
+                        <img src="${post.authorAvatar}" alt="${post.authorName}" onerror="this.src='./assets/default-avatar.png'">
+                        <div class="author-details">
+                            <span class="author-name">${post.authorName}</span>
+                            <span class="post-date">${new Date(post.createdAt).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="article-body">
+                    ${post.content}
+                </div>
+            `;
+
+            // Add smooth scroll behavior
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    document.querySelector(this.getAttribute('href')).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                });
+            });
+        }
+
+        async function incrementViews(postId, currentViews) {
+            try {
+                const postRef = ref(database, `posts/${postId}`);
+                await update(postRef, {
+                    views: currentViews + 1
+                });
+            } catch (error) {
+                console.error('Error updating views:', error);
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="app-container">
-        <header>
-            <button class="back-button" onclick="window.location.href='articles.html'">
-                <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor"/></svg>
-            </button>
-            <button class="save-article">
-                <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" fill="currentColor"/></svg>
-            </button>
-        </header>
-
-        <article class="article-content">
-            <div class="article-header">
-                <span class="tag">Krishnamurti</span>
-                <span class="read-time">5 min read</span>
-            </div>
-            
-            <h1>The End of Thought</h1>
-            <p class="article-excerpt">Understanding the limitations of thought and discovering what lies beyond the mind's constant movement.</p>
-            
-            <div class="article-meta">
-                <div class="author">
-                    <img src="https://source.unsplash.com/random/100x100" alt="Author" class="author-image">
-                    <div class="author-info">
-                        <span class="author-name">J. Krishnamurti</span>
-                        <span class="publish-date">Published 2 days ago</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="article-body">
-                <p>Thought is a movement in time and space. It is the response of memory, experience, and knowledge stored in the brain. But can thought, which is always old, ever understand something new, something that is happening now?</p>
-
-                <p>The mind is constantly seeking security through thought, through beliefs, through systems. But in this very search for security, it creates division, conflict, and therefore insecurity. Can we see this fact without trying to change it, without trying to do something about it?</p>
-
-                <h2>The Nature of Thought</h2>
-                <p>Thought is always fragmentary because it is the response of memory. Memory is always old, and therefore thought is always old. When thought tries to understand something new, it can only understand it in terms of the old. Therefore, thought can never understand what is new, what is fresh.</p>
-
-                <p>We have relied on thought to solve all our problems - psychological, social, and religious. But thought itself is the problem. Thought creates the problem and then tries to solve it. This is the endless cycle of conflict.</p>
-
-                <h2>Beyond Thought</h2>
-                <p>Is there a way of looking that is not the movement of thought? Can there be pure observation without the interference of thought? When there is such observation, there is direct perception, insight.</p>
-
-                <p>This insight is not the result of thought, not the outcome of analysis or logic. It is immediate perception of 'what is' without the screen of thought. In this perception, there is complete understanding and therefore complete action.</p>
-
-                <blockquote>
-                    "The ending of thought is the beginning of wisdom."
-                </blockquote>
-
-                <h2>The Art of Observation</h2>
-                <p>Can we observe our thoughts without trying to change them, without judging them as good or bad? This observation itself brings about a transformation in the quality of thinking. It is not thought trying to change thought.</p>
-
-                <p>When there is pure observation, thought naturally comes to an end. Not through any form of suppression or control, but through understanding. This understanding is not intellectual understanding, but direct perception.</p>
-            </div>
-
-            <div class="article-footer">
-                <div class="tags">
-                    <span class="tag">Consciousness</span>
-                    <span class="tag">Mind</span>
-                    <span class="tag">Awareness</span>
-                </div>
-                
-                <div class="share-buttons">
-                    <button class="share-button">
-                        <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" fill="currentColor"/></svg>
-                        Share
-                    </button>
-                </div>
-            </div>
-        </article>
-
-        <section class="related-articles">
-            <h2>Related Articles</h2>
-            <div class="articles-grid">
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Krishnamurti</span>
-                    </div>
-                    <h3>Freedom from the Known</h3>
-                    <p>Breaking free from conditioning and discovering true psychological freedom...</p>
-                </article>
-                
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Alan Watts</span>
-                    </div>
-                    <h3>The Wisdom of Insecurity</h3>
-                    <p>Exploring the paradox of seeking security in an inherently insecure world...</p>
-                </article>
-            </div>
-        </section>
+        <main class="article-content">
+            <!-- Content will be loaded dynamically -->
+        </main>
     </div>
-    <script src="article.js"></script>
 </body>
 </html> 

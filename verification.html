@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Verify Email - Nothingness</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="auth.css">
+    <link rel="stylesheet" href="verification.css">
+    <script type="module">
+        import { auth, database } from './firebase-config.js';
+        import { sendEmailVerification, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { ref, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const resendBtn = document.getElementById('resendVerification');
+            const signOutBtn = document.getElementById('signOut');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+
+            // Check authentication and verification status
+            auth.onAuthStateChanged(async user => {
+                if (!user) {
+                    window.location.href = 'signin.html';
+                    return;
+                }
+
+                if (user.emailVerified) {
+                    // Check if profile is completed
+                    const userRef = ref(database, `users/${user.uid}`);
+                    const snapshot = await get(userRef);
+                    if (!snapshot.exists() || !snapshot.val().profileCompleted) {
+                        window.location.href = 'completeprofile.html';
+                    } else {
+                        window.location.href = 'home.html';
+                    }
+                    return;
+                }
+
+                // Update email display
+                const emailSpan = document.getElementById('userEmail');
+                emailSpan.textContent = user.email;
+
+                // Check verification status every 5 seconds
+                const checkVerification = setInterval(async () => {
+                    await user.reload();
+                    if (user.emailVerified) {
+                        clearInterval(checkVerification);
+                        showSuccess('Email verified! Redirecting...');
+                        
+                        // Check if profile is completed
+                        const userRef = ref(database, `users/${user.uid}`);
+                        const snapshot = await get(userRef);
+                        setTimeout(() => {
+                            if (!snapshot.exists() || !snapshot.val().profileCompleted) {
+                                window.location.href = 'completeprofile.html';
+                            } else {
+                                window.location.href = 'home.html';
+                            }
+                        }, 1500);
+                    }
+                }, 5000);
+            });
+
+            resendBtn.addEventListener('click', async () => {
+                const user = auth.currentUser;
+                if (!user) return;
+
+                clearMessages();
+
+                try {
+                    await sendEmailVerification(user);
+                    showSuccess('Verification email sent!');
+                    resendBtn.disabled = true;
+                    setTimeout(() => {
+                        resendBtn.disabled = false;
+                    }, 60000); // Enable after 1 minute
+                } catch (error) {
+                    showError('Error sending verification email. Please try again later.');
+                }
+            });
+
+            signOutBtn.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                    window.location.href = 'signin.html';
+                } catch (error) {
+                    showError('Error signing out. Please try again.');
+                }
+            });
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            }
+
+            function clearMessages() {
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1>Verify Your Email</h1>
+            <p class="subtitle">We've sent a verification link to <span id="userEmail"></span></p>
+
+            <div class="verification-content">
+                <p>Please check your email and click the verification link to continue. If you don't see the email, check your spam folder.</p>
+
+                <div id="errorMessage" class="error-message" style="display: none;"></div>
+                <div id="successMessage" class="success-message" style="display: none;"></div>
+
+                <button id="resendVerification" class="btn-secondary">Resend Verification Email</button>
+                <button id="signOut" class="btn-text">Sign Out</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

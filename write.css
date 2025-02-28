@@ -1,0 +1,700 @@
+:root {
+    --primary: #ff7700;
+    --secondary: #ff3300;
+    --text: #ffffff;
+    --background: #1a1a1a;
+    --accent: #7700ff;
+    --card-bg: rgba(255, 255, 255, 0.1);
+    --success: #34c759;
+    --danger: #ff3b30;
+    --warning: #ffcc00;
+    --info: #5856d6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    background: var(--background);
+    min-height: 100vh;
+    color: var(--text);
+}
+
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(26, 26, 26, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.icon-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.icon-button svg {
+    width: 24px;
+    height: 24px;
+}
+
+.author-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.author-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    overflow: hidden;
+}
+
+.author-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.author-level {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.level {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--primary);
+}
+
+.exp-bar {
+    width: 100px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.exp-progress {
+    height: 100%;
+    background: linear-gradient(to right, var(--primary), var(--accent));
+    transition: width 0.3s ease;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-primary, .btn-secondary {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background: var(--secondary);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+main {
+    flex: 1;
+    padding: 2rem;
+    display: flex;
+    gap: 2rem;
+}
+
+.editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+#title {
+    font-size: 2rem;
+    font-weight: 600;
+    background: none;
+    border: none;
+    color: white;
+    padding: 0;
+}
+
+#title:focus {
+    outline: none;
+}
+
+#title::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.ql-toolbar.ql-snow {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--card-bg);
+    border-radius: 8px 8px 0 0;
+}
+
+.ql-container.ql-snow {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--card-bg);
+    border-radius: 0 0 8px 8px;
+    min-height: 500px;
+}
+
+.ql-editor {
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.post-meta {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.meta-section {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.meta-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: var(--primary);
+}
+
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+.category-tag {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.5rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.category-tag:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.category-tag.selected {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.cover-upload {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+}
+
+.upload-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.upload-placeholder svg {
+    width: 32px;
+    height: 32px;
+}
+
+#coverPreview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.reading-time {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.modal.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+}
+
+.modal.active .modal-content {
+    transform: translateY(0);
+}
+
+.achievement-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    background: var(--primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.achievement-icon svg {
+    width: 32px;
+    height: 32px;
+    color: white;
+}
+
+.modal h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(to right, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.achievement-title {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.achievement-exp {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+    header {
+        padding: 0.75rem;
+    }
+
+    .author-level {
+        display: none; /* Hide level info on mobile to save space */
+    }
+
+    .header-actions {
+        gap: 0.5rem;
+    }
+
+    .btn-primary, .btn-secondary {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    main {
+        flex-direction: column;
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .post-meta {
+        width: 100%;
+        gap: 1rem;
+    }
+
+    #title {
+        font-size: 1.5rem;
+        padding: 0 0.5rem;
+    }
+
+    .ql-editor {
+        font-size: 1rem;
+        padding: 0.75rem;
+        min-height: 200px; /* Shorter height for mobile */
+    }
+
+    .ql-toolbar.ql-snow {
+        padding: 0.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .ql-toolbar.ql-snow .ql-formats {
+        margin-right: 0;
+        margin-bottom: 0.25rem;
+    }
+
+    .categories-grid {
+        grid-template-columns: repeat(3, 1fr); /* Show more categories per row on mobile */
+    }
+
+    .category-tag {
+        padding: 0.375rem;
+        font-size: 0.75rem;
+    }
+
+    .meta-section {
+        padding: 1rem;
+    }
+
+    .meta-section h3 {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .cover-upload {
+        aspect-ratio: 16/10; /* Slightly shorter aspect ratio for mobile */
+    }
+
+    .upload-placeholder svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .upload-placeholder span {
+        font-size: 0.875rem;
+    }
+
+    .modal-content {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+
+    .achievement-icon {
+        width: 48px;
+        height: 48px;
+    }
+
+    .achievement-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .modal h2 {
+        font-size: 1.25rem;
+    }
+
+    .achievement-title {
+        font-size: 1rem;
+    }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+    header {
+        padding: 0.5rem;
+    }
+
+    .icon-button {
+        padding: 0.375rem;
+    }
+
+    .icon-button svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .author-avatar {
+        width: 32px;
+        height: 32px;
+    }
+
+    .btn-primary, .btn-secondary {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+
+    main {
+        padding: 0.75rem;
+    }
+
+    #title {
+        font-size: 1.25rem;
+    }
+
+    .categories-grid {
+        grid-template-columns: repeat(2, 1fr); /* Return to 2 columns for very small screens */
+        gap: 0.375rem;
+    }
+
+    .ql-toolbar.ql-snow {
+        padding: 0.375rem;
+    }
+
+    .ql-editor {
+        padding: 0.5rem;
+        font-size: 0.9375rem;
+    }
+
+    /* Optimize toolbar buttons for touch */
+    .ql-toolbar.ql-snow button {
+        width: 28px;
+        height: 28px;
+        padding: 2px;
+    }
+}
+
+/* Keyboard Open State for Mobile */
+@media (max-height: 600px) and (max-width: 768px) {
+    .post-meta {
+        display: none; /* Hide meta section when keyboard is open */
+    }
+
+    .ql-editor {
+        min-height: 150px;
+    }
+}
+
+/* Safe Area Insets for Modern Mobile Browsers */
+@supports (padding: max(0px)) {
+    .app-container {
+        padding-left: max(1rem, env(safe-area-inset-left));
+        padding-right: max(1rem, env(safe-area-inset-right));
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+
+    header {
+        padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+}
+
+/* iOS-specific fixes */
+@supports (-webkit-touch-callout: none) {
+    body {
+        min-height: -webkit-fill-available;
+    }
+
+    .app-container {
+        min-height: -webkit-fill-available;
+    }
+
+    .ql-container.ql-snow {
+        min-height: 200px;
+    }
+
+    /* Prevent zoom on input focus */
+    input, textarea {
+        font-size: 16px !important;
+    }
+
+    .ql-editor {
+        font-size: 16px !important;
+    }
+
+    /* Fix sticky header for iOS */
+    header {
+        position: -webkit-sticky;
+    }
+
+    /* Fix scrolling issues */
+    main {
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* Progress Modal */
+.progress-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.progress-modal.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.progress-content {
+    background: var(--background);
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    max-width: 90%;
+    width: 320px;
+}
+
+.progress-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+.progress-message {
+    color: white;
+    font-size: 1rem;
+}
+
+/* Image Resize Handles */
+.ql-editor img {
+    max-width: 100%;
+    height: auto;
+    cursor: pointer;
+}
+
+.image-resizer {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    background: var(--primary);
+    border: 1px solid white;
+}
+
+.image-resizer.top-left {
+    top: -5px;
+    left: -5px;
+    cursor: nw-resize;
+}
+
+.image-resizer.top-right {
+    top: -5px;
+    right: -5px;
+    cursor: ne-resize;
+}
+
+.image-resizer.bottom-left {
+    bottom: -5px;
+    left: -5px;
+    cursor: sw-resize;
+}
+
+.image-resizer.bottom-right {
+    bottom: -5px;
+    right: -5px;
+    cursor: se-resize;
+}
+
+.image-size-label {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+    z-index: 2;
+}
+
+/* Disabled button state */
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Mobile adjustments for image resizing */
+@media (max-width: 768px) {
+    .image-resizer {
+        width: 10px;
+        height: 10px;
+    }
+
+    .image-size-label {
+        padding: 6px 10px;
+        font-size: 14px;
+    }
+} 

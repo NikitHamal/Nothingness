@@ -1,3 +1,6 @@
+import { auth, database } from './firebase-config.js';
+import { ref, onValue, push, set, remove } from 'https://www.gstatic.com/firebasejs/9.x.x/firebase-database.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
@@ -51,43 +54,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const contextMenu = document.getElementById('collectionMenu');
     let activeCollection = null;
 
-    function setupCollectionMenuEvents(card) {
-        const menuBtn = card.querySelector('.collection-menu');
-        menuBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            activeCollection = card;
-            
-            // Position menu next to button
-            const rect = menuBtn.getBoundingClientRect();
-            contextMenu.style.top = `${rect.bottom + 5}px`;
-            contextMenu.style.left = `${rect.left - 100}px`;
-            
-            contextMenu.classList.add('active');
-        });
-    }
-
-    // Setup initial collection cards
-    document.querySelectorAll('.collection-card').forEach(setupCollectionMenuEvents);
-
-    // Hide context menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (!contextMenu.contains(e.target)) {
-            contextMenu.classList.remove('active');
+        if (e.target.classList.contains('context-menu-trigger')) {
+            e.preventDefault();
+            const collectionCard = e.target.closest('.collection-card');
+            if (collectionCard) {
+                activeCollection = collectionCard.dataset.id;
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = `${e.pageX}px`;
+                contextMenu.style.top = `${e.pageY}px`;
+            }
+        } else if (!e.target.closest('#collectionMenu')) {
+            contextMenu.style.display = 'none';
         }
     });
 
-    // Context menu actions
-    const menuItems = contextMenu.querySelectorAll('.menu-item');
-    menuItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const action = item.getAttribute('data-action');
-            if (action === 'rename') {
-                renameCollection(activeCollection);
-            } else if (action === 'delete') {
-                deleteCollection(activeCollection);
+    // Handle context menu actions
+    document.getElementById('renameCollection').addEventListener('click', async () => {
+        if (!activeCollection) return;
+        
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const newName = prompt('Enter new collection name:');
+        if (newName?.trim()) {
+            const collectionRef = ref(database, `users/${user.uid}/collections/${activeCollection}`);
+            const snapshot = await get(collectionRef);
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                await set(collectionRef, { ...data, name: newName.trim() });
             }
-            contextMenu.classList.remove('active');
-        });
+        }
+        contextMenu.style.display = 'none';
+    });
+
+    document.getElementById('deleteCollection').addEventListener('click', async () => {
+        if (!activeCollection) return;
+        
+        const user = auth.currentUser;
+        if (!user) return;
+
+        if (confirm('Are you sure you want to delete this collection?')) {
+            const collectionRef = ref(database, `users/${user.uid}/collections/${activeCollection}`);
+            await remove(collectionRef);
+        }
+        contextMenu.style.display = 'none';
     });
 
     // Remove saved article
@@ -121,21 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
         setupCollectionMenuEvents(newCollection);
     }
 
-    function renameCollection(collection) {
-        const nameElement = collection.querySelector('h3');
-        const currentName = nameElement.textContent;
-        const newName = prompt('Enter new name:', currentName);
-        
-        if (newName && newName.trim() !== '') {
-            nameElement.textContent = newName;
-            collection.setAttribute('data-id', newName.toLowerCase().replace(/\s+/g, '-'));
-        }
-    }
-
-    function deleteCollection(collection) {
-        if (confirm('Are you sure you want to delete this collection?')) {
-            collection.remove();
-        }
+    function setupCollectionMenuEvents(card) {
+        const menuBtn = card.querySelector('.collection-menu');
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            activeCollection = card.dataset.id;
+            
+            // Position menu next to button
+            const rect = menuBtn.getBoundingClientRect();
+            contextMenu.style.top = `${rect.bottom + 5}px`;
+            contextMenu.style.left = `${rect.left - 100}px`;
+            
+            contextMenu.classList.add('active');
+        });
     }
 
     // Collection cards interaction
@@ -223,11 +232,36 @@ document.addEventListener('DOMContentLoaded', () => {
         observer.observe(el);
     });
 
-    // Search functionality (to be implemented)
+    // Search functionality
     const searchInput = document.querySelector('.search-bar input');
     searchInput?.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
-        // Implement search functionality
-        console.log('Searching for:', searchTerm);
+        const user = auth.currentUser;
+        if (!user) return;
+
+        // Search in collections
+        const collectionsRef = ref(database, `users/${user.uid}/collections`);
+        onValue(collectionsRef, (snapshot) => {
+            const collections = snapshot.val();
+            if (collections) {
+                const filtered = Object.entries(collections).filter(([_, collection]) => 
+                    collection.name.toLowerCase().includes(searchTerm)
+                );
+                updateCollections(Object.fromEntries(filtered));
+            }
+        });
+
+        // Search in saved articles
+        const savedRef = ref(database, `users/${user.uid}/saved`);
+        onValue(savedRef, (snapshot) => {
+            const articles = snapshot.val();
+            if (articles) {
+                const filtered = Object.entries(articles).filter(([_, article]) => 
+                    article.title.toLowerCase().includes(searchTerm) ||
+                    article.description.toLowerCase().includes(searchTerm)
+                );
+                updateSavedArticles(Object.fromEntries(filtered));
+            }
+        });
     });
 }); 

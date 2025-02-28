@@ -2,118 +2,119 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Profile - Nothingness</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="profile.css">
+    <script type="module">
+        import { auth, database } from './firebase-config.js';
+        import { ref, onValue, set } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check authentication
+            auth.onAuthStateChanged(user => {
+                if (!user) {
+                    window.location.href = 'signin.html';
+                    return;
+                }
+
+                // Load user profile
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    const userData = snapshot.val();
+                    if (userData) {
+                        updateProfile(userData);
+                        updateStats(userData.stats || {});
+                        updatePreferences(userData.preferences || {});
+                    }
+                });
+            });
+
+            function updateProfile(userData) {
+                const avatar = document.querySelector('.profile-avatar');
+                const name = document.querySelector('.profile-name');
+                const bio = document.querySelector('.profile-bio');
+
+                if (userData.avatar) {
+                    avatar.innerHTML = `<img src="${userData.avatar}" alt="${userData.displayName || 'Profile'}">`;
+                } else {
+                    avatar.textContent = (userData.displayName || 'S').charAt(0).toUpperCase();
+                }
+                name.textContent = userData.displayName || 'Seeker';
+                bio.textContent = userData.bio || 'Exploring the depths of consciousness';
+            }
+
+            function updateStats(stats) {
+                document.getElementById('articlesRead').textContent = stats.articlesRead || 0;
+                document.getElementById('collections').textContent = stats.collections || 0;
+                document.getElementById('notes').textContent = stats.notes || 0;
+                document.getElementById('favorites').textContent = stats.favorites || 0;
+            }
+
+            function updatePreferences(preferences) {
+                const darkModeSwitch = document.getElementById('darkMode');
+                const notificationsSwitch = document.getElementById('notifications');
+                const readingTimeSwitch = document.getElementById('readingTime');
+
+                if (darkModeSwitch) darkModeSwitch.checked = preferences.darkMode ?? true;
+                if (notificationsSwitch) notificationsSwitch.checked = preferences.notifications ?? false;
+                if (readingTimeSwitch) readingTimeSwitch.checked = preferences.readingTime ?? true;
+
+                // Handle preference changes
+                [darkModeSwitch, notificationsSwitch, readingTimeSwitch].forEach(switchEl => {
+                    if (!switchEl) return;
+                    switchEl.addEventListener('change', async () => {
+                        const user = auth.currentUser;
+                        if (!user) return;
+
+                        const preferenceName = switchEl.id;
+                        const preferenceRef = ref(database, `users/${user.uid}/preferences/${preferenceName}`);
+                        await set(preferenceRef, switchEl.checked);
+                    });
+                });
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="app-container">
         <header>
             <h1>Profile</h1>
             <div class="header-actions">
-                <button class="icon-button">
+                <button class="icon-button" onclick="window.location.href='settings.html'">
                     <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98 0-.34-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" fill="currentColor"/></svg>
                 </button>
             </div>
         </header>
 
-        <div class="profile-header">
-            <div class="profile-avatar">S</div>
-            <h2>Seeker</h2>
-            <p>Exploring the depths of consciousness</p>
+        <div class="profile-section">
+            <div class="profile-avatar"></div>
+            <h2 class="profile-name">Seeker</h2>
+            <p class="profile-bio">Exploring the depths of consciousness</p>
         </div>
 
         <div class="stats-grid">
             <div class="stat-card">
-                <span class="stat-value">42</span>
+                <span class="stat-value" id="articlesRead">0</span>
                 <span class="stat-label">Articles Read</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value">15</span>
+                <span class="stat-value" id="collections">0</span>
                 <span class="stat-label">Collections</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value">28</span>
+                <span class="stat-value" id="notes">0</span>
                 <span class="stat-label">Notes</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value">7</span>
+                <span class="stat-value" id="favorites">0</span>
                 <span class="stat-label">Favorites</span>
             </div>
         </div>
-
-        <section class="reading-history">
-            <h2>Reading History</h2>
-            <div class="timeline">
-                <div class="timeline-item">
-                    <div class="timeline-date">Today</div>
-                    <div class="timeline-content">
-                        <h3>The End of Thought</h3>
-                        <p>Understanding the limitations of thought and discovering what lies beyond...</p>
-                        <span class="tag">Krishnamurti</span>
-                    </div>
-                </div>
-
-                <div class="timeline-item">
-                    <div class="timeline-date">Yesterday</div>
-                    <div class="timeline-content">
-                        <h3>The Wisdom of Insecurity</h3>
-                        <p>Exploring the paradox of seeking security in an inherently insecure world...</p>
-                        <span class="tag">Alan Watts</span>
-                    </div>
-                </div>
-
-                <div class="timeline-item">
-                    <div class="timeline-date">3 days ago</div>
-                    <div class="timeline-content">
-                        <h3>Who Am I?</h3>
-                        <p>A deep dive into self-inquiry and the direct path to self-knowledge...</p>
-                        <span class="tag">Ramana</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="preferences">
-            <h2>Preferences</h2>
-            <div class="preference-list">
-                <div class="preference-item">
-                    <div class="preference-info">
-                        <h3>Dark Mode</h3>
-                        <p>Switch between light and dark themes</p>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" checked>
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="preference-item">
-                    <div class="preference-info">
-                        <h3>Notifications</h3>
-                        <p>Get notified about new articles</p>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="preference-item">
-                    <div class="preference-info">
-                        <h3>Reading Time</h3>
-                        <p>Show estimated reading time</p>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" checked>
-                        <span class="slider"></span>
-                    </label>
-                </div>
-            </div>
-        </section>
 
         <nav class="bottom-nav">
             <button class="nav-item" onclick="window.location.href='home.html'">
@@ -134,6 +135,5 @@
             </button>
         </nav>
     </div>
-    <script src="profile.js"></script>
 </body>
 </html> 

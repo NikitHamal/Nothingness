@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Admin Dashboard - Nothingness</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script type="module">
+        import { auth, database } from './firebase-config.js';
+        import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { ref, onValue, set, remove, query, orderByChild, get, update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        let statsChart;
+        let currentStats = {
+            users: 0,
+            articles: 0,
+            views: 0,
+            comments: 0
+        };
+
+        // Make functions globally available
+        window.verifyUser = async function(userId, isVerified) {
+            try {
+                const userRef = ref(database, `users/${userId}`);
+                await update(userRef, { verified: isVerified });
+                // Update UI
+                const statusElement = document.querySelector(`#user-${userId} .status`);
+                const buttonElement = document.querySelector(`#user-${userId} .verify-btn`);
+                
+                if (statusElement && buttonElement) {
+                    statusElement.textContent = isVerified ? 'Verified' : 'Unverified';
+                    statusElement.className = `status ${isVerified ? 'verified' : ''}`;
+                    buttonElement.innerHTML = isVerified ? 
+                        '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>' :
+                        '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/></svg>';
+                    buttonElement.onclick = () => verifyUser(userId, !isVerified);
+                }
+            } catch (error) {
+                console.error('Error updating user verification:', error);
+                alert('Failed to update user verification status');
+            }
+        }
+
+        window.featurePost = async function(postId, isFeatured) {
+            try {
+                const postRef = ref(database, `posts/${postId}`);
+                await update(postRef, { featured: isFeatured });
+                
+                if (isFeatured) {
+                    // Unfeature all other posts
+                    const postsRef = ref(database, 'posts');
+                    const snapshot = await get(postsRef);
+                    if (snapshot.exists()) {
+                        const updates = {};
+                        Object.keys(snapshot.val()).forEach(key => {
+                            if (key !== postId && snapshot.val()[key].featured) {
+                                updates[`${key}/featured`] = false;
+                            }
+                        });
+                        if (Object.keys(updates).length > 0) {
+                            await update(ref(database, 'posts'), updates);
+                        }
+                    }
+                }
+
+                // Update UI
+                const statusElement = document.querySelector(`#post-${postId} .status`);
+                const buttonElement = document.querySelector(`#post-${postId} .feature-btn`);
+                
+                if (statusElement && buttonElement) {
+                    statusElement.textContent = isFeatured ? 'Featured' : 'Not Featured';
+                    statusElement.className = `status ${isFeatured ? 'featured' : ''}`;
+                    buttonElement.innerHTML = isFeatured ?
+                        '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>' :
+                        '<svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="currentColor"/></svg>';
+                    buttonElement.onclick = () => featurePost(postId, !isFeatured);
+                }
+            } catch (error) {
+                console.error('Error updating post featured status:', error);
+                alert('Failed to update post featured status');
+            }
+        }
+
+        window.banUser = async function(userId) {
+            try {
+                const userRef = ref(database, `users/${userId}`);
+                await update(userRef, { banned: true });
+                alert('User banned successfully');
+            } catch (error) {
+                console.error('Error banning user:', error);
+                alert('Failed to ban user');
+            }
+        }
+
+        window.deleteUser = async function(userId) {
+            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+                return;
+            }
+            try {
+                const userRef = ref(database, `users/${userId}`);
+                await remove(userRef);
+                alert('User deleted successfully');
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Failed to delete user');
+            }
+        }
+
+        window.editArticle = function(postId) {
+            window.location.href = `write.html?edit=${postId}`;
+        }
+
+        window.deleteArticle = async function(postId) {
+            if (!confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
+                return;
+            }
+            try {
+                const postRef = ref(database, `posts/${postId}`);
+                await remove(postRef);
+                alert('Article deleted successfully');
+            } catch (error) {
+                console.error('Error deleting article:', error);
+                alert('Failed to delete article');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const ADMIN_EMAIL = 'iamnikithamal@gmail.com';
+            let currentSection = 'overview';
+
+            // Check authentication and admin status
+            onAuthStateChanged(auth, user => {
+                if (!user || user.email !== ADMIN_EMAIL) {
+                    window.location.href = 'signin.html';
+                    return;
+                }
+                loadDashboard();
+            });
+
+            // Navigation handling
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const section = item.getAttribute('data-section');
+                    if (section) {
+                        showSection(section);
+                    }
+                });
+            });
+
+            function showSection(section) {
+                document.querySelectorAll('.content-section').forEach(el => el.style.display = 'none');
+                document.getElementById(section).style.display = 'block';
+                document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+                document.querySelector(`[data-section="${section}"]`).classList.add('active');
+                currentSection = section;
+            }
+
+            function loadDashboard() {
+                // Load statistics
+                const statsRef = ref(database, 'stats');
+                onValue(statsRef, (snapshot) => {
+                    const stats = snapshot.val() || {};
+                    updateStats(stats);
+                });
+
+                // Load users
+                const usersRef = ref(database, 'users');
+                onValue(usersRef, (snapshot) => {
+                    const users = snapshot.val() || {};
+                    updateUsers(users);
+                });
+
+                // Load posts (renamed from articles)
+                const postsRef = ref(database, 'posts');
+                onValue(postsRef, (snapshot) => {
+                    const posts = snapshot.val() || {};
+                    updateArticles(posts);
+                });
+
+                // Load reports
+                const reportsRef = ref(database, 'reports');
+                onValue(reportsRef, (snapshot) => {
+                    const reports = snapshot.val() || {};
+                    updateReports(reports);
+                });
+
+                // Load trending posts
+                loadTrendingPosts();
+
+                // Load settings
+                loadSettings();
+            }
+
+            async function loadTrendingPosts() {
+                try {
+                    const postsRef = ref(database, 'posts');
+                    const snapshot = await get(postsRef);
+                    
+                    if (snapshot.exists()) {
+                        const posts = Object.entries(snapshot.val());
+                        const sortedPosts = posts.sort((a, b) => (b[1].views || 0) - (a[1].views || 0));
+                        updateTrendingPosts(sortedPosts.slice(0, 5)); // Top 5 posts
+                    }
+                } catch (error) {
+                    console.error('Error loading trending posts:', error);
+                }
+            }
+
+            function updateStats(stats) {
+                document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+                document.getElementById('totalArticles').textContent = stats.totalPosts || 0;
+                document.getElementById('totalReports').textContent = stats.totalReports || 0;
+                document.getElementById('activeUsers').textContent = stats.activeUsers || 0;
+            }
+
+            function updateUsers(users) {
+                const usersList = document.getElementById('users');
+                const usersGrid = document.createElement('div');
+                usersGrid.className = 'users-grid';
+                
+                Object.entries(users).forEach(([uid, user]) => {
+                    const card = document.createElement('div');
+                    card.className = 'user-card';
+                    card.id = `user-${uid}`;
+                    card.innerHTML = `
+                        <div class="user-header">
+                            <img src="${user.avatar || 'default-avatar.png'}" alt="${user.displayName}" class="user-avatar-large">
+                            <div class="user-info">
+                                <div class="user-name">${user.displayName}</div>
+                                <div class="user-email">${user.email}</div>
+                            </div>
+                        </div>
+                        <div class="user-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">${user.posts || 0}</div>
+                                <div class="stat-label">Posts</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${user.followers || 0}</div>
+                                <div class="stat-label">Followers</div>
+                            </div>
+                        </div>
+                        <div class="user-actions">
+                            <button class="action-btn verify-btn" onclick="verifyUser('${uid}', ${!user.verified})">
+                                ${user.verified ? 
+                                    '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>' :
+                                    '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/></svg>'}
+                            </button>
+                            <button class="action-btn" onclick="banUser('${uid}')">
+                                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z" fill="currentColor"/></svg>
+                            </button>
+                            <button class="action-btn" onclick="deleteUser('${uid}')">
+                                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/></svg>
+                            </button>
+                        </div>
+                    `;
+                    usersGrid.appendChild(card);
+                });
+                
+                const usersSection = document.querySelector('#users');
+                const existingGrid = usersSection.querySelector('.users-grid');
+                if (existingGrid) {
+                    existingGrid.replaceWith(usersGrid);
+                } else {
+                    usersSection.appendChild(usersGrid);
+                }
+            }
+
+            function updateArticles(posts) {
+                const articlesList = document.getElementById('articlesList');
+                articlesList.innerHTML = '';
+                Object.entries(posts).forEach(([id, post]) => {
+                    const categories = Array.isArray(post.categories) ? post.categories.join(', ') : (post.category || 'Uncategorized');
+                    const row = document.createElement('tr');
+                    row.id = `post-${id}`;
+                    row.innerHTML = `
+                        <td>${post.title}</td>
+                        <td>${post.authorName || 'Anonymous'}</td>
+                        <td>${categories}</td>
+                        <td>${new Date(post.createdAt).toLocaleDateString()}</td>
+                        <td>${post.views || 0}</td>
+                        <td>
+                            <div class="status ${post.featured ? 'featured' : ''}">${post.featured ? 'Featured' : 'Not Featured'}</div>
+                        </td>
+                        <td>
+                            <button class="action-btn feature-btn" onclick="featurePost('${id}', ${!post.featured})">
+                                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="currentColor"/></svg>
+                            </button>
+                            <button class="action-btn" onclick="editArticle('${id}')">
+                                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/></svg>
+                            </button>
+                            <button class="action-btn" onclick="deleteArticle('${id}')">
+                                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/></svg>
+                            </button>
+                        </td>
+                    `;
+                    articlesList.appendChild(row);
+                });
+            }
+
+            function updateReports(reports) {
+                const reportsList = document.getElementById('reportsList');
+                reportsList.innerHTML = '';
+                Object.entries(reports).forEach(([id, report]) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${report.type}</td>
+                        <td>${report.description}</td>
+                        <td>${report.reportedBy}</td>
+                        <td>${new Date(report.createdAt).toLocaleDateString()}</td>
+                        <td>
+                            <button class="action-btn" onclick="resolveReport('${id}')">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/></svg>
+                            </button>
+                            <button class="action-btn" onclick="deleteReport('${id}')">
+                                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>
+                            </button>
+                        </td>
+                    `;
+                    reportsList.appendChild(row);
+                });
+            }
+
+            function updateTrendingPosts(trendingPosts) {
+                const trendingList = document.getElementById('trendingList');
+                if (!trendingList) return;
+                
+                trendingList.innerHTML = '';
+                trendingPosts.forEach(([id, post]) => {
+                    const categories = Array.isArray(post.categories) ? post.categories.join(', ') : (post.category || 'Uncategorized');
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${post.title}</td>
+                        <td>${categories}</td>
+                        <td>${post.views || 0}</td>
+                        <td>${new Date(post.createdAt).toLocaleDateString()}</td>
+                    `;
+                    trendingList.appendChild(row);
+                });
+            }
+
+            // Initialize chart with better configuration
+            const ctx = document.getElementById('usersChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Views',
+                        data: [],
+                        borderColor: '#ff7700',
+                        backgroundColor: 'rgba(255, 119, 0, 0.2)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#ff7700',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#ff7700',
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        pointBorderWidth: 3,
+                        pointHoverBorderWidth: 4,
+                        pointStyle: 'circle',
+                        cubicInterpolationMode: 'monotone'
+                    }, {
+                        label: 'Posts',
+                        data: [],
+                        borderColor: '#7700ff',
+                        backgroundColor: 'rgba(119, 0, 255, 0.2)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#7700ff',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#7700ff',
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        pointBorderWidth: 3,
+                        pointHoverBorderWidth: 4,
+                        pointStyle: 'circle',
+                        cubicInterpolationMode: 'monotone'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'nearest',
+                        axis: 'x'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'start',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    family: "'Poppins', sans-serif",
+                                    size: 13,
+                                    weight: '600'
+                                },
+                                color: '#ffffff',
+                                boxWidth: 40,
+                                boxHeight: 40
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 26, 0.95)',
+                            titleFont: {
+                                family: "'Poppins', sans-serif",
+                                size: 14,
+                                weight: '600'
+                            },
+                            bodyFont: {
+                                family: "'Poppins', sans-serif",
+                                size: 13
+                            },
+                            padding: 16,
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            usePointStyle: true,
+                            boxPadding: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.parsed.y.toLocaleString();
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawBorder: false,
+                                tickLength: 0
+                            },
+                            ticks: {
+                                font: {
+                                    family: "'Poppins', sans-serif",
+                                    size: 12,
+                                    weight: '500'
+                                },
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                padding: 12
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawBorder: false,
+                                tickLength: 0
+                            },
+                            ticks: {
+                                font: {
+                                    family: "'Poppins', sans-serif",
+                                    size: 12,
+                                    weight: '500'
+                                },
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                padding: 12,
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            },
+                            border: {
+                                dash: [6, 6]
+                            }
+                        }
+                    },
+                    animations: {
+                        tension: {
+                            duration: 1000,
+                            easing: 'linear'
+                        },
+                        radius: {
+                            duration: 400,
+                            easing: 'linear'
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 20,
+                            right: 20,
+                            bottom: 20,
+                            left: 20
+                        }
+                    },
+                    elements: {
+                        line: {
+                            borderCapStyle: 'round',
+                            borderJoinStyle: 'round'
+                        }
+                    }
+                }
+            });
+
+            // Initialize date range picker
+            flatpickr("#dateRange", {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                defaultDate: [new Date().setDate(new Date().getDate() - 30), new Date()],
+                maxDate: "today",
+                animate: true,
+                onChange: function(selectedDates) {
+                    if (selectedDates.length === 2) {
+                        loadChartData(selectedDates[0], selectedDates[1]);
+                    }
+                }
+            });
+
+            // Function to load chart data
+            async function loadChartData(startDate, endDate) {
+                try {
+                    // Format dates for display
+                    const start = startDate.toISOString().split('T')[0];
+                    const end = endDate.toISOString().split('T')[0];
+                    
+                    // Get data from database between dates
+                    const postsRef = ref(database, 'posts');
+                    const snapshot = await get(postsRef);
+                    
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
+                        
+                        // Create monthly buckets
+                        const monthlyData = {};
+                        
+                        // Process data into monthly buckets
+                        Object.values(data).forEach(post => {
+                            const postDate = new Date(post.createdAt);
+                            if (postDate >= startDate && postDate <= endDate) {
+                                const monthKey = postDate.toISOString().substring(0, 7); // YYYY-MM format
+                                if (!monthlyData[monthKey]) {
+                                    monthlyData[monthKey] = { views: 0, posts: 0 };
+                                }
+                                monthlyData[monthKey].views += post.views || 0;
+                                monthlyData[monthKey].posts++;
+                            }
+                        });
+                        
+                        // Sort months and prepare chart data
+                        const sortedMonths = Object.keys(monthlyData).sort();
+                        const viewsData = [];
+                        const postsData = [];
+                        const labels = [];
+                        
+                        sortedMonths.forEach(month => {
+                            labels.push(new Date(month + '-01').toLocaleDateString(undefined, { month: 'short', year: 'numeric' }));
+                            viewsData.push(monthlyData[month].views);
+                            postsData.push(monthlyData[month].posts);
+                        });
+                        
+                        // Update chart
+                        chart.data.labels = labels;
+                        chart.data.datasets[0].data = viewsData;
+                        chart.data.datasets[1].data = postsData;
+                        chart.update();
+                    }
+                } catch (error) {
+                    console.error('Error loading chart data:', error);
+                }
+            }
+
+            // Helper function to get array of dates between start and end
+            function getDatesInRange(startDate, endDate) {
+                const dates = [];
+                let currentDate = new Date(startDate);
+                
+                while (currentDate <= endDate) {
+                    dates.push(new Date(currentDate));
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                return dates;
+            }
+
+            // Load initial data for last 30 days
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            loadChartData(startDate, endDate);
+
+            async function loadSettings() {
+                try {
+                    const settingsRef = ref(database, 'settings');
+                    const snapshot = await get(settingsRef);
+                    
+                    if (snapshot.exists()) {
+                        const settings = snapshot.val();
+                        
+                        // General settings
+                        document.getElementById('siteName').value = settings.general?.siteName || '';
+                        document.getElementById('siteDescription').value = settings.general?.siteDescription || '';
+                        
+                        // Email settings
+                        document.getElementById('smtpHost').value = settings.email?.smtpHost || '';
+                        document.getElementById('smtpPort').value = settings.email?.smtpPort || '';
+                        
+                        // Security settings
+                        document.getElementById('twoFactorAuth').checked = settings.security?.twoFactorAuth || false;
+                        document.getElementById('sessionTimeout').value = settings.security?.sessionTimeout || 30;
+                        
+                        // Backup settings
+                        document.getElementById('autoBackup').checked = settings.backup?.autoBackup || false;
+                        document.getElementById('backupFrequency').value = settings.backup?.frequency || 'daily';
+                    }
+                } catch (error) {
+                    console.error('Error loading settings:', error);
+                }
+            }
+
+            function resetSettings() {
+                if (confirm('Are you sure you want to reset all settings to default?')) {
+                    // Default settings
+                    document.getElementById('siteName').value = 'Nothingness';
+                    document.getElementById('siteDescription').value = 'A platform for wisdom and self-knowledge';
+                    document.getElementById('smtpHost').value = '';
+                    document.getElementById('smtpPort').value = '587';
+                    document.getElementById('twoFactorAuth').checked = false;
+                    document.getElementById('sessionTimeout').value = '30';
+                    document.getElementById('autoBackup').checked = true;
+                    document.getElementById('backupFrequency').value = 'daily';
+                }
+            }
+
+            async function saveSettings() {
+                try {
+                    const settings = {
+                        general: {
+                            siteName: document.getElementById('siteName').value,
+                            siteDescription: document.getElementById('siteDescription').value
+                        },
+                        email: {
+                            smtpHost: document.getElementById('smtpHost').value,
+                            smtpPort: parseInt(document.getElementById('smtpPort').value)
+                        },
+                        security: {
+                            twoFactorAuth: document.getElementById('twoFactorAuth').checked,
+                            sessionTimeout: parseInt(document.getElementById('sessionTimeout').value)
+                        },
+                        backup: {
+                            autoBackup: document.getElementById('autoBackup').checked,
+                            frequency: document.getElementById('backupFrequency').value
+                        }
+                    };
+
+                    const settingsRef = ref(database, 'settings');
+                    await set(settingsRef, settings);
+                    
+                    // Show success message
+                    alert('Settings saved successfully!');
+                } catch (error) {
+                    console.error('Error saving settings:', error);
+                    alert('Error saving settings. Please try again.');
+                }
+            }
+
+            initializeDatePickers();
+            loadDashboardData();
+        });
+
+        function initializeDatePickers() {
+            const dateConfig = {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                defaultDate: [new Date().setDate(new Date().getDate() - 30), new Date()],
+                onChange: (selectedDates) => {
+                    if (selectedDates.length === 2) {
+                        loadChartData(selectedDates[0], selectedDates[1]);
+                    }
+                }
+            };
+
+            flatpickr("#dateRange", {
+                ...dateConfig,
+                theme: "dark"
+            });
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Load users count
+                const usersRef = ref(database, 'users');
+                const usersSnapshot = await get(usersRef);
+                currentStats.users = usersSnapshot.exists() ? Object.keys(usersSnapshot.val()).length : 0;
+                document.querySelector('#usersCount').textContent = currentStats.users;
+
+                // Load articles count and total views
+                const articlesRef = ref(database, 'posts');
+                const articlesSnapshot = await get(articlesRef);
+                if (articlesSnapshot.exists()) {
+                    const articles = Object.values(articlesSnapshot.val());
+                    currentStats.articles = articles.length;
+                    currentStats.views = articles.reduce((total, article) => total + (article.views || 0), 0);
+                }
+                document.querySelector('#articlesCount').textContent = currentStats.articles;
+                document.querySelector('#viewsCount').textContent = currentStats.views;
+
+                // Load comments count
+                const commentsRef = ref(database, 'comments');
+                const commentsSnapshot = await get(commentsRef);
+                currentStats.comments = commentsSnapshot.exists() ? Object.keys(commentsSnapshot.val()).length : 0;
+                document.querySelector('#commentsCount').textContent = currentStats.comments;
+
+                // Initialize chart with last 30 days data
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 30);
+                loadChartData(startDate, endDate);
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        async function loadChartData(startDate, endDate) {
+            try {
+                // Format dates for display
+                const start = startDate.toISOString().split('T')[0];
+                const end = endDate.toISOString().split('T')[0];
+                
+                // Get data from database between dates
+                const postsRef = ref(database, 'posts');
+                const snapshot = await get(postsRef);
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    
+                    // Create monthly buckets
+                    const monthlyData = {};
+                    
+                    // Process data into monthly buckets
+                    Object.values(data).forEach(post => {
+                        const postDate = new Date(post.createdAt);
+                        if (postDate >= startDate && postDate <= endDate) {
+                            const monthKey = postDate.toISOString().substring(0, 7); // YYYY-MM format
+                            if (!monthlyData[monthKey]) {
+                                monthlyData[monthKey] = { views: 0, posts: 0 };
+                            }
+                            monthlyData[monthKey].views += post.views || 0;
+                            monthlyData[monthKey].posts++;
+                        }
+                    });
+                    
+                    // Sort months and prepare chart data
+                    const sortedMonths = Object.keys(monthlyData).sort();
+                    const viewsData = [];
+                    const postsData = [];
+                    const labels = [];
+                    
+                    sortedMonths.forEach(month => {
+                        labels.push(new Date(month + '-01').toLocaleDateString(undefined, { month: 'short', year: 'numeric' }));
+                        viewsData.push(monthlyData[month].views);
+                        postsData.push(monthlyData[month].posts);
+                    });
+                    
+                    // Update chart
+                    chart.data.labels = labels;
+                    chart.data.datasets[0].data = viewsData;
+                    chart.data.datasets[1].data = postsData;
+                    chart.update();
+                }
+            } catch (error) {
+                console.error('Error loading chart data:', error);
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="admin-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Admin Panel</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-section="overview">
+                    <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/></svg>
+                    <span>Overview</span>
+                </button>
+                <button class="nav-item" data-section="users">
+                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/></svg>
+                    <span>Users</span>
+                </button>
+                <button class="nav-item" data-section="articles">
+                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/></svg>
+                    <span>Articles</span>
+                </button>
+                <button class="nav-item" data-section="reports">
+                    <svg viewBox="0 0 24 24"><path d="M15.73 3H8.27L3 8.27v7.46L8.27 21h7.46L21 15.73V8.27L15.73 3zM12 17.3c-.72 0-1.3-.58-1.3-1.3 0-.72.58-1.3 1.3-1.3.72 0 1.3.58 1.3 1.3 0 .72-.58 1.3-1.3 1.3zm1-4.3h-2V7h2v6z" fill="currentColor"/></svg>
+                    <span>Reports</span>
+                </button>
+                <button class="nav-item" data-section="settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.41-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" fill="currentColor"/></svg>
+                    <span>Settings</span>
+                </button>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div id="overview" class="content-section">
+                <div class="section-header">
+                    <h2>Dashboard Overview</h2>
+                    <div class="date-range">
+                        <input type="text" id="dateRange" placeholder="Select date range" readonly>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(255, 119, 0, 0.2);">
+                            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Users</span>
+                            <span class="stat-value" id="usersCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(119, 0, 255, 0.2);">
+                            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Articles</span>
+                            <span class="stat-value" id="articlesCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(52, 199, 89, 0.2);">
+                            <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="currentColor"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Views</span>
+                            <span class="stat-value" id="viewsCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(88, 86, 214, 0.2);">
+                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h10v2zm0-3H6V6h10v2z" fill="currentColor"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Comments</span>
+                            <span class="stat-value" id="commentsCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-grid">
+                <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>Activity Overview</h3>
+                            <div class="date-range">
+                                <input type="text" id="dateRange" placeholder="Select date range" readonly>
+                            </div>
+                        </div>
+                    <canvas id="usersChart"></canvas>
+                    </div>
+                    <div class="trending-container">
+                        <h3>Trending Articles</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Categories</th>
+                                        <th>Views</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trendingList">
+                                    <!-- Trending posts will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="users" class="content-section" style="display: none;">
+                <div class="section-header">
+                    <h2>User Management</h2>
+                    <button class="action-button">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
+                        Add User
+                        </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Avatar</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Join Date</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersList">
+                            <!-- Users will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="articles" class="content-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Article Management</h2>
+                    <button class="action-button" onclick="window.location.href='write.html'">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
+                        New Article
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Author</th>
+                                <th>Categories</th>
+                                <th>Date</th>
+                                <th>Views</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="articlesList">
+                            <!-- Articles will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="reports" class="content-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Report Management</h2>
+                    <div class="filter-dropdown">
+                        <select>
+                            <option value="all">All Reports</option>
+                            <option value="spam">Spam</option>
+                            <option value="inappropriate">Inappropriate Content</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th>Reported By</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportsList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="settings" class="content-section" style="display: none;">
+                <div class="section-header">
+                    <h2>System Settings</h2>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <div class="settings-group">
+                            <h4>General Settings</h4>
+                        <div class="setting-item">
+                                <label for="siteName">Site Name</label>
+                                <input type="text" id="siteName" value="Nothingness">
+                        </div>
+                        <div class="setting-item">
+                                <label for="siteDescription">Site Description</label>
+                                <textarea id="siteDescription">A platform for wisdom and self-knowledge</textarea>
+                        </div>
+                    </div>
+
+                        <div class="settings-group">
+                            <h4>Email Settings</h4>
+                        <div class="setting-item">
+                                <label for="smtpHost">SMTP Host</label>
+                                <input type="text" id="smtpHost" placeholder="smtp.example.com">
+                        </div>
+                        <div class="setting-item">
+                                <label for="smtpPort">SMTP Port</label>
+                                <input type="number" id="smtpPort" placeholder="587">
+                        </div>
+                    </div>
+
+                        <div class="settings-group">
+                            <h4>Security Settings</h4>
+                            <div class="setting-item checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="twoFactorAuth">
+                                    <span class="toggle-slider"></span>
+                            </label>
+                                <span>Two-Factor Authentication</span>
+                        </div>
+                        <div class="setting-item">
+                                <label for="sessionTimeout">Session Timeout (minutes)</label>
+                                <input type="number" id="sessionTimeout" value="30">
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h4>Backup Settings</h4>
+                            <div class="setting-item checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="autoBackup" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Auto Backup</span>
+                    </div>
+                        <div class="setting-item">
+                                <label for="backupFrequency">Backup Frequency</label>
+                                <select id="backupFrequency">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button class="btn-reset" onclick="resetSettings()">Reset to Default</button>
+                            <button class="btn-save" onclick="saveSettings()">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html> 

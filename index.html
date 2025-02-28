@@ -8,6 +8,47 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const slides = document.querySelectorAll('.slide');
+            const dots = document.querySelectorAll('.dot');
+            let currentSlide = 0;
+
+            function updateSlides() {
+                slides.forEach(slide => slide.classList.remove('active'));
+                dots.forEach(dot => dot.classList.remove('active'));
+                
+                slides[currentSlide].classList.add('active');
+                dots[currentSlide].classList.add('active');
+            }
+
+            function nextSlide() {
+                currentSlide = (currentSlide + 1) % slides.length;
+                updateSlides();
+            }
+
+            // Auto advance slides
+            setInterval(nextSlide, 4000);
+
+            // Manual navigation with dots
+            dots.forEach((dot, index) => {
+                dot.addEventListener('click', () => {
+                    currentSlide = index;
+                    updateSlides();
+                });
+            });
+
+            // CTA button animation
+            const ctaButton = document.querySelector('.cta-button');
+            ctaButton.addEventListener('mouseover', () => {
+                ctaButton.style.transform = 'translateY(-2px)';
+            });
+
+            ctaButton.addEventListener('mouseout', () => {
+                ctaButton.style.transform = 'translateY(0)';
+            });
+        });
+    </script>
 </head>
 <body>
     <div class="onboarding-container">
@@ -93,6 +134,5 @@
             <button onclick="window.location.href='home.html'" class="cta-button">Begin Journey</button>
         </div>
     </div>
-    <script src="app.js"></script>
 </body>
 </html> 

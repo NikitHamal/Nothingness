@@ -2,89 +2,263 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nothingness - Wisdom & Self-Knowledge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Home - Nothingness</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="home.css">
+    <script src="theme-switcher.js" defer></script>
+    <style>
+        .shimmer {
+            background: linear-gradient(
+                90deg,
+                rgba(255, 255, 255, 0.1),
+                rgba(255, 255, 255, 0.2),
+                rgba(255, 255, 255, 0.1)
+            );
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite linear;
+        }
+
+        @keyframes shimmer {
+            to {
+                background-position: -200% 0;
+            }
+        }
+
+        .loading .featured-card {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .loading .featured-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            filter: blur(10px);
+        }
+
+        .loading .tag {
+            width: 80px;
+            height: 24px;
+            border-radius: 12px;
+        }
+
+        .loading h2 {
+            width: 60%;
+            height: 32px;
+            margin: 16px 0;
+            border-radius: 4px;
+        }
+
+        .loading p {
+            width: 100%;
+            height: 64px;
+            border-radius: 4px;
+        }
+
+        .loading .read-more {
+            width: 120px;
+            height: 40px;
+            border-radius: 20px;
+        }
+
+        /* Post shimmer loading */
+        .loading-post {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            height: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .loading-post .post-meta {
+            display: flex;
+            gap: 12px;
+        }
+
+        .loading-post .post-meta .shimmer {
+            height: 24px;
+            border-radius: 12px;
+        }
+
+        .loading-post .post-meta .tag {
+            width: 80px;
+        }
+
+        .loading-post .post-meta .time {
+            width: 100px;
+        }
+
+        .loading-post .post-title {
+            height: 28px;
+            width: 80%;
+            border-radius: 4px;
+        }
+
+        .loading-post .post-excerpt {
+            height: 72px;
+            border-radius: 4px;
+        }
+    </style>
+    <script type="module">
+        import { auth, database } from './firebase-config.js';
+        import { ref, onValue, query, get, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFeaturedPost();
+            loadRecentPosts();
+        });
+
+        function showLoadingState() {
+            const featuredCard = document.querySelector('.featured-card');
+            featuredCard.classList.add('loading');
+            featuredCard.innerHTML = `
+                <div class="card-content">
+                    <span class="tag shimmer"></span>
+                    <h2 class="shimmer"></h2>
+                    <p class="shimmer"></p>
+                    <button class="read-more shimmer"></button>
+                </div>
+            `;
+
+            const articlesGrid = document.querySelector('.articles-grid');
+            articlesGrid.innerHTML = Array(6).fill(`
+                <div class="loading-post">
+                    <div class="post-meta">
+                        <span class="tag shimmer"></span>
+                        <span class="time shimmer"></span>
+                    </div>
+                    <div class="post-title shimmer"></div>
+                    <div class="post-excerpt shimmer"></div>
+                </div>
+            `).join('');
+        }
+
+        function hideLoadingState() {
+            const featuredCard = document.querySelector('.featured-card');
+            featuredCard.classList.remove('loading');
+        }
+
+        async function loadFeaturedPost() {
+            showLoadingState();
+            
+            try {
+                const postsRef = ref(database, 'posts');
+                const snapshot = await get(postsRef);
+                
+                if (snapshot.exists()) {
+                    const posts = Object.entries(snapshot.val());
+                    const sortedPosts = posts.sort((a, b) => (b[1].views || 0) - (a[1].views || 0));
+                    const [postId, post] = sortedPosts[0];
+                    
+                    hideLoadingState();
+                    const featuredCard = document.querySelector('.featured-card');
+                    featuredCard.onclick = () => window.location.href = `article.html?id=${postId}`;
+                    
+                    const category = Array.isArray(post.categories) && post.categories.length > 0 
+                        ? post.categories[0] 
+                        : (post.category || 'Uncategorized');
+                    
+                    featuredCard.innerHTML = `
+                        <div class="card-content">
+                            <span class="tag">${category}</span>
+                            <h2>${post.title}</h2>
+                            <p>${post.excerpt || post.content.substring(0, 120)}...</p>
+                            <button class="read-more">Read Article</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading featured post:', error);
+                hideLoadingState();
+            }
+        }
+
+        async function loadRecentPosts() {
+            const postsRef = ref(database, 'posts');
+            const recentPostsQuery = query(postsRef, limitToLast(6));
+            
+            try {
+                const snapshot = await get(recentPostsQuery);
+                if (snapshot.exists()) {
+                    const articlesGrid = document.querySelector('.articles-grid');
+                    articlesGrid.innerHTML = '';
+                    
+                    Object.entries(snapshot.val())
+                        .reverse()
+                        .forEach(([articleId, article]) => {
+                            const card = createArticleCard(article, articleId);
+                            articlesGrid.appendChild(card);
+                        });
+                }
+            } catch (error) {
+                console.error('Error loading recent posts:', error);
+            }
+        }
+
+        function createArticleCard(article, articleId) {
+            const card = document.createElement('div');
+            card.className = 'article-card';
+            card.onclick = () => window.location.href = `article.html?id=${articleId}`;
+
+            const readTime = Math.ceil(article.content.split(' ').length / 200);
+            
+            // Get the first category or fallback to 'Uncategorized'
+            const category = Array.isArray(article.categories) && article.categories.length > 0 
+                ? article.categories[0] 
+                : (article.category || 'Uncategorized');
+
+            card.innerHTML = `
+                <div class="article-meta">
+                    <span class="tag">${category}</span>
+                    <span class="read-time">${readTime} min read</span>
+                </div>
+                <h3>${article.title}</h3>
+                <p>${article.excerpt || article.content.substring(0, 120)}...</p>
+            `;
+
+            return card;
+        }
+    </script>
 </head>
 <body>
     <div class="app-container">
         <header>
-            <h1>Nothingness</h1>
-            <button class="icon-button" onclick="window.location.href='search.html'">
-                <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
-            </button>
+            <h1>Explore</h1>
+            <div class="header-actions">
+                <button class="icon-button" onclick="window.location.href='search.html'">
+                    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
+                </button>
+                <button class="icon-button circle-button" onclick="window.location.href='write.html'">
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
+                </button>
+            </div>
         </header>
 
-        <div class="featured-content">
+        <div class="featured-post">
+            <h2>Featured</h2>
             <div class="featured-card">
-                <span class="tag featured">Featured</span>
-                <div class="card-content">
-                    <h2>The Nature of Self</h2>
-                    <p>Explore the timeless teachings on understanding your true nature beyond the mind.</p>
-                    <button class="read-article" onclick="window.location.href='article.html'">
-                        Read Article
-                        <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/></svg>
-                    </button>
-                </div>
+                <!-- Content will be loaded dynamically -->
             </div>
         </div>
 
-        <section class="topics-section">
-            <div class="section-header">
-                <h2>Topics</h2>
-                <button class="view-all" onclick="window.location.href='topics.html'">View All</button>
-            </div>
-            <div class="topics-grid">
-                <button class="topic-button" onclick="window.location.href='topic.html?id=non-duality'">Non-Duality</button>
-                <button class="topic-button" onclick="window.location.href='topic.html?id=consciousness'">Consciousness</button>
-                <button class="topic-button" onclick="window.location.href='topic.html?id=freedom'">Freedom</button>
-                <button class="topic-button" onclick="window.location.href='topic.html?id=truth'">Truth</button>
-            </div>
-        </section>
+        <div class="section-header">
+            <h2>Recent Articles</h2>
+            <a href="articles.html" class="view-all">View All</a>
+        </div>
 
-        <section class="articles-section">
-            <div class="section-header">
-                <h2>Latest Articles</h2>
-                <button class="view-all" onclick="window.location.href='articles.html'">View All</button>
-            </div>
-            <div class="articles-grid">
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Krishnamurti</span>
-                        <button class="save-article" onclick="event.stopPropagation()">
-                            <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" fill="currentColor"/></svg>
-                        </button>
-                    </div>
-                    <h3>The End of Thought</h3>
-                    <p>Understanding the limitations of thought and discovering what lies beyond...</p>
-                </article>
-                
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Alan Watts</span>
-                        <button class="save-article" onclick="event.stopPropagation()">
-                            <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" fill="currentColor"/></svg>
-                        </button>
-                    </div>
-                    <h3>The Wisdom of Insecurity</h3>
-                    <p>Exploring the paradox of seeking security in an inherently insecure world...</p>
-                </article>
-                
-                <article class="article-card" onclick="window.location.href='article.html'">
-                    <div class="article-header">
-                        <span class="tag">Ramana</span>
-                        <button class="save-article" onclick="event.stopPropagation()">
-                            <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" fill="currentColor"/></svg>
-                        </button>
-                    </div>
-                    <h3>Who Am I?</h3>
-                    <p>A deep dive into self-inquiry and the direct path to self-knowledge...</p>
-                </article>
-            </div>
-        </section>
+        <div class="articles-grid"></div>
 
         <nav class="bottom-nav">
             <button class="nav-item active">
@@ -105,6 +279,5 @@
             </button>
         </nav>
     </div>
-    <script src="home.js"></script>
 </body>
-</html> 
+</html>
