@@ -11,106 +11,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="navbar.css">
     <script src="theme-switcher.js" defer></script>
-    <style>
-        .shimmer {
-            background: linear-gradient(
-                90deg,
-                rgba(255, 255, 255, 0.1),
-                rgba(255, 255, 255, 0.2),
-                rgba(255, 255, 255, 0.1)
-            );
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite linear;
-        }
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
 
-        @keyframes shimmer {
-            to {
-                background-position: -200% 0;
-            }
-        }
-
-        .loading .featured-card {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .loading .featured-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: inherit;
-            filter: blur(10px);
-        }
-
-        .loading .tag {
-            width: 80px;
-            height: 24px;
-            border-radius: 12px;
-        }
-
-        .loading h2 {
-            width: 60%;
-            height: 32px;
-            margin: 16px 0;
-            border-radius: 4px;
-        }
-
-        .loading p {
-            width: 100%;
-            height: 64px;
-            border-radius: 4px;
-        }
-
-        .loading .read-more {
-            width: 120px;
-            height: 40px;
-            border-radius: 20px;
-        }
-
-        /* Post shimmer loading */
-        .loading-post {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 20px;
-            height: 200px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .loading-post .post-meta {
-            display: flex;
-            gap: 12px;
-        }
-
-        .loading-post .post-meta .shimmer {
-            height: 24px;
-            border-radius: 12px;
-        }
-
-        .loading-post .post-meta .tag {
-            width: 80px;
-        }
-
-        .loading-post .post-meta .time {
-            width: 100px;
-        }
-
-        .loading-post .post-title {
-            height: 28px;
-            width: 80%;
-            border-radius: 4px;
-        }
-
-        .loading-post .post-excerpt {
-            height: 72px;
-            border-radius: 4px;
-        }
-    </style>
     <script type="module">
         import { auth, database } from './firebase-config.js';
         import { ref, onValue, query, get, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
@@ -159,8 +67,15 @@
                 
                 if (snapshot.exists()) {
                     const posts = Object.entries(snapshot.val());
-                    const sortedPosts = posts.sort((a, b) => (b[1].views || 0) - (a[1].views || 0));
-                    const [postId, post] = sortedPosts[0];
+                    // First check for posts with featured=true
+                    let featuredPosts = posts.filter(([_, post]) => post.featured === true);
+                    
+                    // If no featured posts found, fall back to most viewed
+                    if (featuredPosts.length === 0) {
+                        featuredPosts = posts.sort((a, b) => (b[1].views || 0) - (a[1].views || 0));
+                    }
+                    
+                    const [postId, post] = featuredPosts[0];
                     
                     hideLoadingState();
                     const featuredCard = document.querySelector('.featured-card');
@@ -235,13 +150,13 @@
 <body>
     <div class="app-container">
         <header>
-            <h1>Explore</h1>
+            <h1>Nothingness</h1>
             <div class="header-actions">
                 <button class="icon-button" onclick="window.location.href='search.html'">
                     <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
                 </button>
-                <button class="icon-button circle-button" onclick="window.location.href='write.html'">
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
+                <button class="icon-button" onclick="window.location.href='notifications.html'">
+                    <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" fill="currentColor"/></svg>
                 </button>
             </div>
         </header>
@@ -279,5 +194,111 @@
             </button>
         </nav>
     </div>
+
+    <script>
+        // Initialize Firebase with your config
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "your-app.firebaseapp.com",
+            databaseURL: "https://your-app.firebaseio.com",
+            projectId: "your-app-id",
+            storageBucket: "your-app.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        
+        // Load featured article
+        async function loadFeaturedArticle() {
+            const featuredCard = document.querySelector('.featured-card');
+            featuredCard.innerHTML = '<div class="loading shimmer" style="height: 300px; border-radius: 16px;"></div>';
+            
+            try {
+                const snapshot = await database.ref('featured').once('value');
+                if (snapshot.exists()) {
+                    const featured = snapshot.val();
+                    const articleRef = database.ref(`articles/${featured.articleId}`);
+                    const articleSnapshot = await articleRef.once('value');
+                    
+                    if (articleSnapshot.exists()) {
+                        const article = articleSnapshot.val();
+                        featuredCard.innerHTML = `
+                            <div class="featured-tag">${article.category || 'Featured'}</div>
+                            <h2>${article.title}</h2>
+                            <p>${article.excerpt || article.content.substring(0, 150)}...</p>
+                            <button class="read-more" onclick="window.location.href='article.html?id=${featured.articleId}'">Read More</button>
+                        `;
+                    } else {
+                        featuredCard.innerHTML = '<p>Featured article not found</p>';
+                    }
+                } else {
+                    featuredCard.innerHTML = '<p>No featured article set</p>';
+                }
+            } catch (error) {
+                console.error("Error loading featured article:", error);
+                featuredCard.innerHTML = '<p>Error loading featured article</p>';
+            }
+        }
+        
+        // Load recent articles
+        async function loadRecentArticles() {
+            const articlesGrid = document.querySelector('.articles-grid');
+            // Add loading shimmer
+            articlesGrid.innerHTML = Array(4).fill('<div class="loading-post shimmer"></div>').join('');
+            
+            try {
+                const snapshot = await database.ref('articles').limitToLast(4).once('value');
+                articlesGrid.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    const articles = [];
+                    snapshot.forEach(child => {
+                        articles.push({
+                            id: child.key,
+                            ...child.val()
+                        });
+                    });
+                    
+                    // Reverse to show newest first
+                    articles.reverse().forEach(article => {
+                        const card = document.createElement('div');
+                        card.className = 'article-card';
+                        card.innerHTML = `
+                            <div class="article-meta">
+                                <span class="tag">${article.category || 'General'}</span>
+                                <span class="read-time">${calculateReadTime(article.content)} min read</span>
+                            </div>
+                            <h3>${article.title}</h3>
+                            <p>${article.excerpt || article.content.substring(0, 100)}...</p>
+                        `;
+                        card.addEventListener('click', () => {
+                            window.location.href = `article.html?id=${article.id}`;
+                        });
+                        articlesGrid.appendChild(card);
+                    });
+                } else {
+                    articlesGrid.innerHTML = '<p>No articles found</p>';
+                }
+            } catch (error) {
+                console.error("Error loading articles:", error);
+                articlesGrid.innerHTML = '<p>Error loading articles</p>';
+            }
+        }
+        
+        function calculateReadTime(content) {
+            const wordsPerMinute = 200;
+            const wordCount = content.trim().split(/\s+/).length;
+            return Math.max(1, Math.ceil(wordCount / wordsPerMinute));
+        }
+        
+        // Load content when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFeaturedArticle();
+            loadRecentArticles();
+        });
+    </script>
 </body>
 </html>

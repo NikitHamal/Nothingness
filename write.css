@@ -294,13 +294,15 @@ main {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.8);
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 1000;
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
 }
 
 .modal.active {
@@ -309,51 +311,95 @@ main {
 }
 
 .modal-content {
-    background: var(--card-bg);
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
     border-radius: 16px;
-    padding: 2rem;
+    padding: 32px;
+    width: 90%;
+    max-width: 400px;
     text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 119, 0, 0.5);
     transform: translateY(20px);
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease;
+    color: white;
+    position: relative;
+    overflow: hidden;
 }
 
 .modal.active .modal-content {
     transform: translateY(0);
 }
 
+.modal-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(255, 119, 0, 0.2) 0%, transparent 70%);
+    pointer-events: none;
+}
+
 .achievement-icon {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 1rem;
-    background: var(--primary);
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(45deg, #ff7700, #ff3300);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0 auto 24px;
+    box-shadow: 0 5px 15px rgba(255, 119, 0, 0.4);
+    position: relative;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 119, 0, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(255, 119, 0, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 119, 0, 0);
+    }
 }
 
 .achievement-icon svg {
-    width: 32px;
-    height: 32px;
+    width: 48px;
+    height: 48px;
     color: white;
 }
 
-.modal h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-    background: linear-gradient(to right, var(--primary), var(--accent));
+.modal-content h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    background: linear-gradient(45deg, #ff7700, #ff3300);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .achievement-title {
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: white;
 }
 
 .achievement-exp {
-    color: var(--primary);
-    font-weight: 500;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffcc00;
+    background: rgba(255, 204, 0, 0.1);
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 8px;
+    box-shadow: 0 2px 8px rgba(255, 204, 0, 0.2);
 }
 
 /* Mobile Responsive Styles */

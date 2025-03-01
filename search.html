@@ -9,119 +9,319 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="search.css">
+    <script src="theme-switcher.js" defer></script>
     <script type="module">
         import { auth, database } from './firebase-config.js';
-        import { ref, query, orderBy, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+        import { ref, query, get, limitToLast } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             const searchInput = document.querySelector('.search-input');
             const resultsContainer = document.querySelector('.search-results');
+            const filterForm = document.querySelector('.filter-form');
+            const categoryFilter = document.getElementById('category-filter');
+            const dateFilter = document.getElementById('date-filter');
+            const sortFilter = document.getElementById('sort-filter');
+            const backButton = document.querySelector('.back-button');
+            
             let debounceTimer;
+            let allPosts = [];
+            let categories = new Set();
 
+            // Back button functionality
+            backButton.addEventListener('click', () => {
+                history.back();
+            });
+
+            // Load all posts initially
+            loadAllPosts();
+
+            // Search input event
             searchInput.addEventListener('input', (e) => {
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(() => {
-                    searchArticles(e.target.value);
+                    applyFilters();
                 }, 300);
             });
 
-            searchInput.focus();
-        });
+            // Filter form events
+            filterForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                applyFilters();
+            });
 
-        async function searchArticles(searchTerm) {
-            if (!searchTerm.trim()) {
-                document.querySelector('.search-results').innerHTML = '';
-                return;
+            // Reset filters
+            document.getElementById('reset-filters').addEventListener('click', () => {
+                categoryFilter.value = '';
+                dateFilter.value = '';
+                sortFilter.value = 'newest';
+                searchInput.value = '';
+                applyFilters();
+            });
+
+            // Focus search input
+            searchInput.focus();
+
+            async function loadAllPosts() {
+                try {
+                    showLoadingState();
+                    const postsRef = ref(database, 'posts');
+                    const postsQuery = query(postsRef, limitToLast(100)); // Limit to last 100 posts for performance
+                    const snapshot = await get(postsQuery);
+                    
+                    if (snapshot.exists()) {
+                        allPosts = Object.entries(snapshot.val()).map(([id, post]) => ({
+                            id,
+                            ...post
+                        }));
+                        
+                        // Extract all categories
+                        allPosts.forEach(post => {
+                            if (Array.isArray(post.categories)) {
+                                post.categories.forEach(cat => categories.add(cat));
+                            } else if (post.category) {
+                                categories.add(post.category);
+                            }
+                        });
+                        
+                        // Populate category filter
+                        populateCategoryFilter();
+                        
+                        // Show all posts initially
+                        applyFilters();
+                    } else {
+                        resultsContainer.innerHTML = '<div class="no-results">No articles found</div>';
+                    }
+                    hideLoadingState();
+                } catch (error) {
+                    console.error('Error loading posts:', error);
+                    hideLoadingState();
+                    resultsContainer.innerHTML = '<div class="error-state">Error loading articles. Please try again.</div>';
+                }
             }
 
-            const articlesRef = ref(database, 'articles');
-            const articlesQuery = query(articlesRef, orderBy('title'));
+            function populateCategoryFilter() {
+                categoryFilter.innerHTML = '<option value="">All Categories</option>';
+                [...categories].sort().forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categoryFilter.appendChild(option);
+                });
+            }
 
-            try {
-                const snapshot = await get(articlesQuery);
-                const results = [];
-
-                if (snapshot.exists()) {
-                    snapshot.forEach((articleSnap) => {
-                        const article = articleSnap.val();
-                        if (article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            article.content.toLowerCase().includes(searchTerm.toLowerCase())) {
-                            results.push({ id: articleSnap.key, ...article });
+            function applyFilters() {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+                const category = categoryFilter.value;
+                const dateRange = dateFilter.value;
+                const sortBy = sortFilter.value;
+                
+                let filteredResults = [...allPosts];
+                
+                // Apply search term filter
+                if (searchTerm) {
+                    filteredResults = filteredResults.filter(post => 
+                        post.title.toLowerCase().includes(searchTerm) || 
+                        post.content.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                // Apply category filter
+                if (category) {
+                    filteredResults = filteredResults.filter(post => {
+                        if (Array.isArray(post.categories)) {
+                            return post.categories.includes(category);
+                        } else {
+                            return post.category === category;
                         }
                     });
                 }
-
-                displayResults(results);
-            } catch (error) {
-                console.error('Error searching articles:', error);
+                
+                // Apply date filter
+                if (dateRange) {
+                    const now = new Date();
+                    let dateLimit;
+                    
+                    switch(dateRange) {
+                        case 'today':
+                            dateLimit = new Date(now.setHours(0, 0, 0, 0));
+                            break;
+                        case 'week':
+                            dateLimit = new Date(now.setDate(now.getDate() - 7));
+                            break;
+                        case 'month':
+                            dateLimit = new Date(now.setMonth(now.getMonth() - 1));
+                            break;
+                        case 'year':
+                            dateLimit = new Date(now.setFullYear(now.getFullYear() - 1));
+                            break;
+                    }
+                    
+                    filteredResults = filteredResults.filter(post => {
+                        const postDate = new Date(post.createdAt);
+                        return postDate >= dateLimit;
+                    });
+                }
+                
+                // Apply sorting
+                switch(sortBy) {
+                    case 'newest':
+                        filteredResults.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                        break;
+                    case 'oldest':
+                        filteredResults.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                        break;
+                    case 'views':
+                        filteredResults.sort((a, b) => (b.views || 0) - (a.views || 0));
+                        break;
+                    case 'title':
+                        filteredResults.sort((a, b) => a.title.localeCompare(b.title));
+                        break;
+                }
+                
+                displayResults(filteredResults);
+                updateResultsCount(filteredResults.length);
             }
-        }
 
-        function displayResults(results) {
-            const resultsContainer = document.querySelector('.search-results');
-            resultsContainer.innerHTML = '';
-
-            if (results.length === 0) {
-                resultsContainer.innerHTML = '<div class="no-results">No articles found</div>';
-                return;
+            function updateResultsCount(count) {
+                const resultsCount = document.querySelector('.results-count');
+                resultsCount.textContent = `${count} result${count !== 1 ? 's' : ''} found`;
             }
 
-            results.forEach(article => {
-                const card = createResultCard(article);
-                resultsContainer.appendChild(card);
-            });
-        }
+            function displayResults(results) {
+                resultsContainer.innerHTML = '';
 
-        function createResultCard(article) {
-            const card = document.createElement('div');
-            card.className = 'result-card';
-            card.onclick = () => window.location.href = `article.html?id=${article.id}`;
+                if (results.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="no-results">
+                            <svg viewBox="0 0 24 24" width="48" height="48">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
+                            </svg>
+                            <h3>No articles found</h3>
+                            <p>Try adjusting your search or filters</p>
+                        </div>
+                    `;
+                    return;
+                }
 
-            const readTime = Math.ceil(article.content.split(' ').length / 200);
+                results.forEach(post => {
+                    const card = createResultCard(post);
+                    resultsContainer.appendChild(card);
+                });
+            }
 
-            card.innerHTML = `
-                <div class="result-meta">
-                    <span class="tag">${article.category}</span>
-                    <span class="read-time">${readTime} min read</span>
-                </div>
-                <h3>${article.title}</h3>
-                <p>${article.excerpt || article.content.substring(0, 120)}...</p>
-            `;
+            function createResultCard(post) {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.onclick = () => window.location.href = `article.html?id=${post.id}`;
 
-            return card;
-        }
+                const readTime = Math.ceil(post.content.split(' ').length / 200);
+                
+                // Get the first category or fallback to 'Uncategorized'
+                const category = Array.isArray(post.categories) && post.categories.length > 0 
+                    ? post.categories[0] 
+                    : (post.category || 'Uncategorized');
+
+                card.innerHTML = `
+                    <div class="result-meta">
+                        <span class="tag">${category}</span>
+                        <span class="read-time">${readTime} min read</span>
+                    </div>
+                    <h3>${post.title}</h3>
+                    <p>${post.excerpt || post.content.substring(0, 120)}...</p>
+                    <div class="result-footer">
+                        <span class="date">${new Date(post.createdAt).toLocaleDateString()}</span>
+                        <span class="views">${post.views || 0} views</span>
+                    </div>
+                `;
+
+                return card;
+            }
+            
+            function showLoadingState() {
+                resultsContainer.innerHTML = Array(4).fill(`
+                    <div class="result-card loading">
+                        <div class="result-meta">
+                            <span class="tag shimmer"></span>
+                            <span class="read-time shimmer"></span>
+                        </div>
+                        <h3 class="shimmer"></h3>
+                        <p class="shimmer"></p>
+                        <div class="result-footer">
+                            <span class="date shimmer"></span>
+                            <span class="views shimmer"></span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            function hideLoadingState() {
+                // This function just clears the loading state
+                // The actual content will be set by displayResults
+            }
+        });
     </script>
 </head>
 <body>
     <div class="app-container">
         <header>
+            <div class="header-top">
+                <button class="back-button">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor"/></svg>
+                </button>
+                <h1>Search</h1>
+            </div>
+            
             <div class="search-bar">
                 <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
                 <input type="text" class="search-input" placeholder="Search articles...">
             </div>
+            
+            <form class="filter-form">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label for="category-filter">Category</label>
+                        <select id="category-filter">
+                            <option value="">All Categories</option>
+                            <!-- Categories will be populated dynamically -->
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="date-filter">Date</label>
+                        <select id="date-filter">
+                            <option value="">Any Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="sort-filter">Sort By</label>
+                        <select id="sort-filter">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="views">Most Views</option>
+                            <option value="title">Title A-Z</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="filter-actions">
+                    <button type="button" id="reset-filters" class="reset-btn">Reset</button>
+                    <button type="submit" class="apply-btn">Apply Filters</button>
+                </div>
+            </form>
         </header>
 
+        <div class="results-header">
+            <span class="results-count">0 results found</span>
+        </div>
+        
         <div class="search-results"></div>
-
-        <nav class="bottom-nav">
-            <button class="nav-item" onclick="window.location.href='home.html'">
-                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="currentColor"/></svg>
-                <span>Home</span>
-            </button>
-            <button class="nav-item" onclick="window.location.href='articles.html'">
-                <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" fill="currentColor"/></svg>
-                <span>Articles</span>
-            </button>
-            <button class="nav-item" onclick="window.location.href='library.html'">
-                <svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" fill="currentColor"/></svg>
-                <span>Library</span>
-            </button>
-            <button class="nav-item" onclick="window.location.href='profile.html'">
-                <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/></svg>
-                <span>Profile</span>
-            </button>
-        </nav>
     </div>
 </body>
 </html> 

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flamey Live - Multimodal AI Interaction</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="flamey.css">
+    <link rel="stylesheet" href="live.css">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Mobile sidebar toggle button -->
+        <button class="sidebar-toggle" id="sidebar-toggle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+
+        <!-- Theme toggle button -->
+        <button class="theme-toggle" id="theme-toggle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" id="theme-icon">
+                <path d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z" stroke="currentColor" stroke-width="2"/>
+                <path d="M12 3V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M12 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M5 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M21 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M19.07 4.93L16.95 7.05" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M7.05 16.95L4.93 19.07" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M16.95 16.95L19.07 19.07" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M4.93 4.93L7.05 7.05" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+
+        <div class="chat-sidebar" id="chat-sidebar">
+            <div class="fire-avatar">
+                <svg class="fire-svg" viewBox="0 0 200 200">
+                    <defs>
+                        <radialGradient id="flame-gradient-1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                            <stop offset="0%" stop-color="#ffdd00" />
+                            <stop offset="30%" stop-color="#ff7700" />
+                            <stop offset="70%" stop-color="#ff3300" />
+                            <stop offset="100%" stop-color="#cc0000" />
+                        </radialGradient>
+                        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="5" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                    </defs>
+                    
+                    <g id="flamey-body" filter="url(#glow)">
+                        <path d="M100 180 C70 160 50 140 60 100 C40 90 50 60 70 50 C60 40 70 20 90 30 C100 10 110 20 115 30 C130 25 140 40 130 50 C150 60 160 90 140 100 C150 140 130 160 100 180" fill="url(#flame-gradient-1)">
+                            <animate attributeName="d" 
+                                     dur="5s" 
+                                     repeatCount="indefinite"
+                                     values="M100 180 C70 160 50 140 60 100 C40 90 50 60 70 50 C60 40 70 20 90 30 C100 10 110 20 115 30 C130 25 140 40 130 50 C150 60 160 90 140 100 C150 140 130 160 100 180;
+                                             M100 180 C75 165 45 135 55 100 C35 85 55 65 65 50 C55 35 65 15 85 25 C100 5 115 15 120 25 C135 20 145 35 135 45 C155 55 165 85 145 100 C155 135 125 165 100 180;
+                                             M100 180 C70 160 50 140 60 100 C40 90 50 60 70 50 C60 40 70 20 90 30 C100 10 110 20 115 30 C130 25 140 40 130 50 C150 60 160 90 140 100 C150 140 130 160 100 180"/>
+                        </path>
+                        
+                        <path d="M100 160 C80 145 65 130 75 100 C65 90 70 70 85 65 C80 55 85 40 95 45 C100 30 105 40 108 45 C118 42 125 55 115 65 C130 70 135 90 125 100 C135 130 120 145 100 160" fill="#ffcc00" opacity="0.7">
+                            <animate attributeName="d" 
+                                     dur="3s" 
+                                     repeatCount="indefinite"
+                                     values="M100 160 C80 145 65 130 75 100 C65 90 70 70 85 65 C80 55 85 40 95 45 C100 30 105 40 108 45 C118 42 125 55 115 65 C130 70 135 90 125 100 C135 130 120 145 100 160;
+                                             M100 160 C85 150 70 125 70 100 C60 85 75 75 80 65 C75 50 90 35 100 45 C105 35 110 35 115 45 C125 40 130 50 120 65 C125 75 140 85 130 100 C130 125 115 150 100 160;
+                                             M100 160 C80 145 65 130 75 100 C65 90 70 70 85 65 C80 55 85 40 95 45 C100 30 105 40 108 45 C118 42 125 55 115 65 C130 70 135 90 125 100 C135 130 120 145 100 160"/>
+                        </path>
+                        
+                        <path d="M100 140 C90 130 85 115 90 95 C80 90 85 80 95 78 C90 70 95 60 100 65 C105 55 110 60 112 65 C117 63 120 70 115 78 C125 80 130 90 120 95 C125 115 110 130 100 140" fill="#ffffff" opacity="0.7">
+                            <animate attributeName="d" 
+                                     dur="2s" 
+                                     repeatCount="indefinite"
+                                     values="M100 140 C90 130 85 115 90 95 C80 90 85 80 95 78 C90 70 95 60 100 65 C105 55 110 60 112 65 C117 63 120 70 115 78 C125 80 130 90 120 95 C125 115 110 130 100 140;
+                                             M100 140 C92 125 80 110 85 95 C75 85 90 80 92 78 C88 65 98 55 103 65 C108 60 112 55 115 65 C120 62 122 65 117 78 C120 80 135 85 125 95 C120 110 108 125 100 140;
+                                             M100 140 C90 130 85 115 90 95 C80 90 85 80 95 78 C90 70 95 60 100 65 C105 55 110 60 112 65 C117 63 120 70 115 78 C125 80 130 90 120 95 C125 115 110 130 100 140"/>
+                        </path>
+
+                        <g id="flamey-face">
+                            <circle cx="90" cy="90" r="5" fill="#1a1a1a">
+                                <animate attributeName="ry" values="5;1;5" dur="5s" repeatCount="indefinite" begin="1s"/>
+                            </circle>
+                            <circle cx="110" cy="90" r="5" fill="#1a1a1a">
+                                <animate attributeName="ry" values="5;1;5" dur="5s" repeatCount="indefinite" begin="1s"/>
+                            </circle>
+                            <path d="M85 110 Q100 120 115 110" stroke="#1a1a1a" stroke-width="3" fill="none">
+                                <animate attributeName="d" values="M85 110 Q100 120 115 110;M85 115 Q100 125 115 115;M85 110 Q100 120 115 110" dur="8s" repeatCount="indefinite"/>
+                            </path>
+                        </g>
+                    </g>
+                </svg>
+            </div>
+            <h1>Flamey Live</h1>
+
+            <!-- Multimodal settings -->
+            <div class="modality-settings">
+                <h3>Input Modalities</h3>
+                <div class="modality-toggles">
+                    <div class="modality-toggle active" id="toggle-text">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 7h16M4 12h10M4 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span>Text</span>
+                    </div>
+                    <div class="modality-toggle" id="toggle-audio">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 19v4" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 23h8" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <span>Voice</span>
+                    </div>
+                    <div class="modality-toggle" id="toggle-video">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" stroke-width="2"/>
+                            <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <span>Video</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="response-settings">
+                <h3>Response Options</h3>
+                <div class="setting">
+                    <span>Voice Response</span>
+                    <label class="switch">
+                        <input type="checkbox" id="voice-response-toggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="setting">
+                    <span>Text Display</span>
+                    <label class="switch">
+                        <input type="checkbox" id="text-response-toggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="chat-settings">
+                <div class="setting">
+                    <span>Back to Chat</span>
+                    <a href="flamey.html" class="icon-button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 12H5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                </div>
+                <div class="setting">
+                    <span>Clear Session</span>
+                    <button id="clear-session" class="icon-button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6H5H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M10 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M5 6L6 20C6 20.5304 6.21071 21.0391 6.58579 21.4142C6.96086 21.7893 7.46957 22 8 22H16C16.5304 22 17.0391 21.7893 17.4142 21.4142C17.7893 21.0391 18 20.5304 18 20L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-main">
+            <!-- Multimedia container for video and audio -->
+            <div class="multimedia-container">
+                <div id="video-container">
+                    <video id="user-video" autoplay muted playsinline></video>
+                    <div id="model-avatar">
+                        <div class="mini-flamey-large"></div>
+                    </div>
+                </div>
+                <div id="audio-visualization">
+                    <div class="audio-wave">
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chat-messages">
+                <div class="message assistant">
+                    <div class="message-avatar">
+                        <div class="mini-flamey"></div>
+                    </div>
+                    <div class="message-content">
+                        <p>Hi there! I'm Flamey Live, your multimodal AI assistant. I can see, hear, and speak with you. How would you like to interact today?</p>
+                        <div class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                </div>
+                <!-- Messages will be added here -->
+            </div>
+
+            <div class="chat-input-area">
+                <form id="chat-form">
+                    <textarea id="user-input" placeholder="Ask me anything..." rows="1"></textarea>
+                    <button type="submit" id="send-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L9 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M22 2L15 22L9 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </form>
+
+                <!-- Media controls -->
+                <div class="input-controls">
+                    <button id="mic-button" class="input-control-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 19v4" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 23h8" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </button>
+                    <button id="camera-button" class="input-control-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" stroke-width="2"/>
+                            <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="input-info">
+                    <span>Powered by Gemini Multimodal Live API</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="live.js" type="module"></script>
+</body>
+</html> 

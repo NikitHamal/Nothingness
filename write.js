@@ -315,9 +315,23 @@ async function savePost(post) {
     // Check for achievements
     if (!userData.achievements) userData.achievements = [];
     
-    if (!userData.achievements.includes('first_post')) {
+    // Only show first post achievement if this is actually their first post
+    const isFirstPost = !userData.stats?.postsPublished || userData.stats.postsPublished === 0;
+    if (isFirstPost && !userData.achievements.includes('first_post')) {
         updates.achievements = [...userData.achievements, 'first_post'];
         showAchievement('First Post Created', 100);
+    } else if (userData.stats?.postsPublished === 4) {
+        // Show achievement for 5th post
+        if (!userData.achievements.includes('fifth_post')) {
+            updates.achievements = [...userData.achievements, 'fifth_post'];
+            showAchievement('5 Posts Published!', 250);
+        }
+    } else if (userData.stats?.postsPublished === 9) {
+        // Show achievement for 10th post
+        if (!userData.achievements.includes('tenth_post')) {
+            updates.achievements = [...userData.achievements, 'tenth_post'];
+            showAchievement('10 Posts Published!', 500);
+        }
     }
 
     await set(userRef, { ...userData, ...updates });

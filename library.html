@@ -2,15 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Library - Nothingness</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="library.css">
+    <link rel="stylesheet" href="navbar.css">
+    <script src="theme-switcher.js" defer></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
     <script type="module">
         import { auth, database } from './firebase-config.js';
-        import { ref, onValue, push, set, remove } from 'https://www.gstatic.com/firebasejs/9.x.x/firebase-database.js';
+        import { ref, onValue, push, set, remove, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             // Check authentication
@@ -26,6 +36,8 @@
                     const collections = snapshot.val();
                     if (collections) {
                         updateCollections(collections);
+                    } else {
+                        showEmptyState('collections');
                     }
                 });
 
@@ -35,7 +47,31 @@
                     const savedArticles = snapshot.val();
                     if (savedArticles) {
                         updateSavedArticles(savedArticles);
+                    } else {
+                        showEmptyState('saved');
                     }
+                });
+
+                // Handle tab switching
+                const tabs = document.querySelectorAll('.tab');
+                const tabContents = document.querySelectorAll('.tab-content');
+                
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        const tabId = tab.dataset.tab;
+                        
+                        // Update active tab
+                        tabs.forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        
+                        // Update active content
+                        tabContents.forEach(content => {
+                            content.classList.remove('active');
+                            if (content.id === tabId) {
+                                content.classList.add('active');
+                            }
+                        });
+                    });
                 });
 
                 // Handle collection creation
@@ -61,7 +97,7 @@
                         const newCollectionRef = push(collectionsRef);
                         await set(newCollectionRef, {
                             name,
-                            createdAt: Date.now(),
+                            createdAt: new Date().toISOString(),
                             articles: []
                         });
                         modal.classList.remove('active');
@@ -74,7 +110,7 @@
                 let activeCollection = null;
 
                 document.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('context-menu-trigger')) {
+                    if (e.target.classList.contains('context-menu-trigger') || e.target.closest('.context-menu-trigger')) {
                         e.preventDefault();
                         const collectionCard = e.target.closest('.collection-card');
                         if (collectionCard) {
@@ -113,7 +149,7 @@
             });
 
             function updateCollections(collections) {
-                const collectionsContainer = document.querySelector('#collections.tab-content');
+                const collectionsContainer = document.querySelector('#collections .collections-grid');
                 if (collectionsContainer) {
                     collectionsContainer.innerHTML = Object.entries(collections).map(([id, collection]) => `
                         <div class="collection-card" data-id="${id}">
@@ -121,34 +157,74 @@
                                 <h3>${collection.name}</h3>
                                 <p>${collection.articles?.length || 0} articles</p>
                             </div>
-                            <button class="context-menu-trigger">⋮</button>
+                            <button class="context-menu-trigger">
+                                <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="currentColor"/></svg>
+                            </button>
                         </div>
                     `).join('');
                 }
             }
 
             function updateSavedArticles(articles) {
-                const savedContainer = document.querySelector('#saved.tab-content');
+                const savedContainer = document.querySelector('#saved .articles-grid');
                 if (savedContainer) {
                     savedContainer.innerHTML = Object.entries(articles).map(([id, article]) => `
-                        <article class="article-card" data-id="${id}">
-                            <div class="article-header">
-                                <span class="tag">${article.author}</span>
-                                <button class="remove-saved" onclick="removeFromSaved('${id}')">
+                        <article class="article-card" data-id="${id}" onclick="window.location.href='article.html?id=${article.articleId}'">
+                            <div class="article-meta">
+                                <span class="tag">${article.category || 'Uncategorized'}</span>
+                                <button class="remove-saved" onclick="event.stopPropagation(); removeFromSaved('${id}')">
                                     <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/></svg>
                                 </button>
                             </div>
                             <h3>${article.title}</h3>
-                            <p>${article.description}</p>
-                            <span class="save-date">Saved ${formatDate(article.savedAt)}</span>
+                            <p>${article.excerpt || article.description || ''}</p>
+                            <div class="article-footer">
+                                <span class="save-date">Saved ${formatDate(article.savedAt)}</span>
+                            </div>
                         </article>
                     `).join('');
                 }
             }
 
+            function showEmptyState(type) {
+                const container = document.querySelector(`#${type}`);
+                if (container) {
+                    if (type === 'collections') {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" width="48" height="48">
+                                    <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" fill="currentColor"/>
+                                </svg>
+                                <h3>No Collections Yet</h3>
+                                <p>Create your first collection to organize your favorite articles</p>
+                                <button class="action-btn" id="createEmptyBtn">Create Collection</button>
+                            </div>
+                        `;
+                        document.getElementById('createEmptyBtn').addEventListener('click', () => {
+                            document.getElementById('createCollectionModal').classList.add('active');
+                            document.getElementById('collectionName').focus();
+                        });
+                    } else if (type === 'saved') {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" width="48" height="48">
+                                    <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z" fill="currentColor"/>
+                                </svg>
+                                <h3>No Saved Articles</h3>
+                                <p>Articles you save will appear here</p>
+                                <button class="action-btn" onclick="window.location.href='articles.html'">Browse Articles</button>
+                            </div>
+                        `;
+                    }
+                }
+            }
+
             function formatDate(timestamp) {
-                const now = Date.now();
-                const diff = now - timestamp;
+                if (!timestamp) return '';
+                
+                const date = new Date(timestamp);
+                const now = new Date();
+                const diff = now - date;
                 const days = Math.floor(diff / (1000 * 60 * 60 * 24));
                 
                 if (days === 0) return 'today';
@@ -173,9 +249,14 @@
     <div class="app-container">
         <header>
             <h1>Library</h1>
-            <button class="icon-button" id="createCollectionBtn">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
-            </button>
+            <div class="header-actions">
+                <button class="icon-button" onclick="window.location.href='search.html'">
+                    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
+                </button>
+                <button class="icon-button circle-button" id="createCollectionBtn">
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
+                </button>
+            </div>
         </header>
 
         <div class="tabs">
@@ -203,11 +284,11 @@
         </div>
 
         <div class="context-menu" id="collectionMenu">
-            <button class="menu-item" data-action="rename">
+            <button class="menu-item" id="renameCollection">
                 <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/></svg>
                 Rename
             </button>
-            <button class="menu-item" data-action="delete">
+            <button class="menu-item" id="deleteCollection">
                 <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/></svg>
                 Delete
             </button>

@@ -9,12 +9,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="profile.css">
+    <link rel="stylesheet" href="navbar.css">
+    <script src="theme-switcher.js" defer></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
     <script type="module">
         import { auth, database } from './firebase-config.js';
-        import { ref, onValue, set } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+        import { ref, onValue, get, query, orderByChild, equalTo, set, limitToLast } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Show loading skeletons
+            showLoadingState();
+            
             // Check authentication
             auth.onAuthStateChanged(user => {
                 if (!user) {
@@ -30,15 +41,109 @@
                         updateProfile(userData);
                         updateStats(userData.stats || {});
                         updatePreferences(userData.preferences || {});
+                        
+                        // Load user posts
+                        loadUserPosts(user.uid);
                     }
                 });
             });
+
+            // Add utility function for relative time
+            function getRelativeTimeString(date) {
+                const now = new Date();
+                const diffInMs = now - date;
+                const diffInSecs = Math.floor(diffInMs / 1000);
+                const diffInMins = Math.floor(diffInSecs / 60);
+                const diffInHours = Math.floor(diffInMins / 60);
+                const diffInDays = Math.floor(diffInHours / 24);
+                const diffInWeeks = Math.floor(diffInDays / 7);
+                const diffInMonths = Math.floor(diffInDays / 30);
+                const diffInYears = Math.floor(diffInDays / 365);
+                
+                if (diffInSecs < 60) {
+                    return 'just now';
+                } else if (diffInMins < 60) {
+                    return `${diffInMins} ${diffInMins === 1 ? 'minute' : 'minutes'} ago`;
+                } else if (diffInHours < 24) {
+                    return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
+                } else if (diffInDays < 7) {
+                    return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+                } else if (diffInWeeks < 4) {
+                    return `${diffInWeeks} ${diffInWeeks === 1 ? 'week' : 'weeks'} ago`;
+                } else if (diffInMonths < 12) {
+                    return `${diffInMonths} ${diffInMonths === 1 ? 'month' : 'months'} ago`;
+                } else {
+                    return `${diffInYears} ${diffInYears === 1 ? 'year' : 'years'} ago`;
+                }
+            }
+
+            function showLoadingState() {
+                const profileSection = document.querySelector('.profile-section');
+                profileSection.innerHTML = `
+                    <div class="profile-avatar loading-skeleton"></div>
+                    <h2 class="profile-name loading-skeleton" style="width: 150px; height: 30px; margin: 0 auto;"></h2>
+                    <p class="profile-bio loading-skeleton" style="width: 250px; height: 20px; margin: 10px auto;"></p>
+                `;
+                
+                const statsGrid = document.querySelector('.stats-grid');
+                statsGrid.innerHTML = `
+                    <div class="stat-card minimal">
+                        <span class="stat-value loading-skeleton" id="articlesRead" style="width: 30px; height: 20px; margin: 0 auto;"></span>
+                        <span class="stat-label loading-skeleton" style="width: 60px; height: 14px; margin: 5px auto;"></span>
+                    </div>
+                    <div class="stat-card minimal">
+                        <span class="stat-value loading-skeleton" id="collections" style="width: 30px; height: 20px; margin: 0 auto;"></span>
+                        <span class="stat-label loading-skeleton" style="width: 60px; height: 14px; margin: 5px auto;"></span>
+                    </div>
+                    <div class="stat-card minimal">
+                        <span class="stat-value loading-skeleton" id="followers" style="width: 30px; height: 20px; margin: 0 auto;"></span>
+                        <span class="stat-label loading-skeleton" style="width: 60px; height: 14px; margin: 5px auto;"></span>
+                    </div>
+                    <div class="stat-card minimal">
+                        <span class="stat-value loading-skeleton" id="following" style="width: 30px; height: 20px; margin: 0 auto;"></span>
+                        <span class="stat-label loading-skeleton" style="width: 60px; height: 14px; margin: 5px auto;"></span>
+                    </div>
+                    <div class="stat-card minimal">
+                        <span class="stat-value loading-skeleton" id="notes" style="width: 30px; height: 20px; margin: 0 auto;"></span>
+                        <span class="stat-label loading-skeleton" style="width: 60px; height: 14px; margin: 5px auto;"></span>
+                    </div>
+                    <div class="stat-card minimal">
+                        <span class="stat-value loading-skeleton" id="favorites" style="width: 30px; height: 20px; margin: 0 auto;"></span>
+                        <span class="stat-label loading-skeleton" style="width: 60px; height: 14px; margin: 5px auto;"></span>
+                    </div>
+                `;
+                
+                const postsContainer = document.querySelector('.user-posts');
+                const timelineHtml = `
+                    <div class="timeline">
+                        ${Array(3).fill(`
+                            <div class="timeline-item">
+                                <div class="timeline-date loading-skeleton" style="width: 80px; height: 18px;"></div>
+                                <div class="timeline-content">
+                                    <div class="post-meta">
+                                        <span class="post-category loading-skeleton" style="width: 80px; height: 24px;"></span>
+                                    </div>
+                                    <h3 class="post-title loading-skeleton" style="width: 90%; height: 28px; margin: 10px 0;"></h3>
+                                    <p class="post-excerpt loading-skeleton" style="width: 100%; height: 60px;"></p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                postsContainer.innerHTML = timelineHtml;
+            }
 
             function updateProfile(userData) {
                 const avatar = document.querySelector('.profile-avatar');
                 const name = document.querySelector('.profile-name');
                 const bio = document.querySelector('.profile-bio');
 
+                // Remove loading skeletons
+                avatar.classList.remove('loading-skeleton');
+                name.classList.remove('loading-skeleton');
+                bio.classList.remove('loading-skeleton');
+                
+                // Update with actual data
                 if (userData.avatar) {
                     avatar.innerHTML = `<img src="${userData.avatar}" alt="${userData.displayName || 'Profile'}">`;
                 } else {
@@ -49,10 +154,59 @@
             }
 
             function updateStats(stats) {
-                document.getElementById('articlesRead').textContent = stats.articlesRead || 0;
-                document.getElementById('collections').textContent = stats.collections || 0;
-                document.getElementById('notes').textContent = stats.notes || 0;
-                document.getElementById('favorites').textContent = stats.favorites || 0;
+                const statElements = document.querySelectorAll('.stat-value, .stat-label');
+                statElements.forEach(el => el.classList.remove('loading-skeleton'));
+                
+                const articlesReadEl = document.getElementById('articlesRead');
+                const collectionsEl = document.getElementById('collections');
+                const notesEl = document.getElementById('notes');
+                const favoritesEl = document.getElementById('favorites');
+                const followersEl = document.getElementById('followers');
+                const followingEl = document.getElementById('following');
+                
+                // Format numbers to be more compact (e.g., 1.5k instead of 1500)
+                const formatCount = (count) => {
+                    if (!count && count !== 0) return '0';
+                    
+                    if (count >= 1000000) {
+                        return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+                    }
+                    if (count >= 1000) {
+                        return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+                    }
+                    return count.toString();
+                };
+                
+                // Update stat values
+                if (articlesReadEl) {
+                    articlesReadEl.textContent = formatCount(stats.articlesRead || 0);
+                    articlesReadEl.nextElementSibling.textContent = 'Articles';
+                }
+                
+                if (collectionsEl) {
+                    collectionsEl.textContent = formatCount(stats.collections || 0);
+                    collectionsEl.nextElementSibling.textContent = 'Collections';
+                }
+                
+                if (notesEl) {
+                    notesEl.textContent = formatCount(stats.notes || 0);
+                    notesEl.nextElementSibling.textContent = 'Notes';
+                }
+                
+                if (favoritesEl) {
+                    favoritesEl.textContent = formatCount(stats.postsPublished || 0);
+                    favoritesEl.nextElementSibling.textContent = 'Posts';
+                }
+                
+                if (followersEl) {
+                    followersEl.textContent = formatCount(stats.followers || 0);
+                    followersEl.nextElementSibling.textContent = 'Followers';
+                }
+                
+                if (followingEl) {
+                    followingEl.textContent = formatCount(stats.following || 0);
+                    followingEl.nextElementSibling.textContent = 'Following';
+                }
             }
 
             function updatePreferences(preferences) {
@@ -77,6 +231,172 @@
                     });
                 });
             }
+            
+            async function loadUserPosts(userId) {
+                const postsContainer = document.querySelector('.user-posts');
+                
+                try {
+                    // Add sample stats if not present
+                    const userRef = ref(database, `users/${userId}`);
+                    const userSnapshot = await get(userRef);
+                    const userData = userSnapshot.val() || {};
+                    
+                    // If no stats exist or if missing followers/following, initialize with sample values
+                    const existingStats = userData.stats || {};
+                    const needsStatsUpdate = !existingStats || 
+                        typeof existingStats.followers === 'undefined' || 
+                        typeof existingStats.following === 'undefined' ||
+                        typeof existingStats.postsPublished === 'undefined';
+                    
+                    if (needsStatsUpdate) {
+                        // Sample stats for demonstration, preserving existing values
+                        const sampleStats = {
+                            articlesRead: existingStats.articlesRead || Math.floor(Math.random() * 150) + 10,
+                            collections: existingStats.collections || Math.floor(Math.random() * 20) + 2,
+                            notes: existingStats.notes || Math.floor(Math.random() * 45) + 5,
+                            favorites: existingStats.favorites || Math.floor(Math.random() * 80) + 15,
+                            followers: existingStats.followers || Math.floor(Math.random() * 2500) + 100,
+                            following: existingStats.following || Math.floor(Math.random() * 500) + 50,
+                            postsPublished: existingStats.postsPublished || 0
+                        };
+                        
+                        await set(ref(database, `users/${userId}/stats`), sampleStats);
+                        updateStats(sampleStats);
+                    }
+                    
+                    // Load all posts and filter on client side
+                    const postsRef = ref(database, 'posts');
+                    const recentPostsQuery = query(postsRef, limitToLast(50));
+                    
+                    const snapshot = await get(recentPostsQuery);
+                    
+                    // Clear loading state
+                    postsContainer.innerHTML = '';
+                    
+                    if (!snapshot.exists()) {
+                        postsContainer.innerHTML = `
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" width="48" height="48"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z" fill="currentColor"/></svg>
+                                <p>No posts yet</p>
+                                <button class="primary-button" onclick="window.location.href='write.html'">Write Your First Post</button>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Filter and sort posts by the current user
+                    const posts = [];
+                    snapshot.forEach(child => {
+                        const post = {
+                            id: child.key,
+                            ...child.val()
+                        };
+                        
+                        // Only include posts by this user
+                        if (post.authorId === userId || 
+                            (post.author && post.author.uid === userId)) {
+                            posts.push(post);
+                        }
+                    });
+                    
+                    if (posts.length === 0) {
+                        postsContainer.innerHTML = `
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" width="48" height="48"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z" fill="currentColor"/></svg>
+                                <p>No posts yet</p>
+                                <button class="primary-button" onclick="window.location.href='write.html'">Write Your First Post</button>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Sort posts by date (most recent first)
+                    posts.sort((a, b) => {
+                        // Handle different date formats
+                        const dateA = a.timestamp || a.createdAt;
+                        const dateB = b.timestamp || b.createdAt;
+                        
+                        if (!dateA && !dateB) return 0;
+                        if (!dateA) return 1;
+                        if (!dateB) return -1;
+                        
+                        // Convert to timestamp if ISO date string
+                        const timeA = typeof dateA === 'string' ? new Date(dateA).getTime() : dateA;
+                        const timeB = typeof dateB === 'string' ? new Date(dateB).getTime() : dateB;
+                        
+                        return timeB - timeA;
+                    });
+                    
+                    // Create timeline container
+                    const timelineEl = document.createElement('div');
+                    timelineEl.className = 'timeline';
+                    postsContainer.appendChild(timelineEl);
+                    
+                    // Render posts as timeline items
+                    posts.forEach(post => {
+                        // Handle different date formats
+                        const postDate = post.timestamp 
+                            ? new Date(typeof post.timestamp === 'number' ? post.timestamp : post.timestamp) 
+                            : post.createdAt 
+                                ? new Date(post.createdAt) 
+                                : new Date();
+                        
+                        // Get relative time string
+                        const relativeTime = getRelativeTimeString(postDate);
+                        
+                        // Get content and create excerpt
+                        const postContent = post.content || '';
+                        let excerpt = '';
+                        
+                        // Check if content is HTML and extract text
+                        if (postContent.includes('<') && postContent.includes('>')) {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = postContent;
+                            excerpt = tempDiv.textContent || tempDiv.innerText || '';
+                        } else {
+                            excerpt = postContent;
+                        }
+                        
+                        excerpt = excerpt.substring(0, 120) + (excerpt.length > 120 ? '...' : '');
+                        
+                        // Get category
+                        const category = post.category || 
+                                        (post.categories && post.categories.length > 0 
+                                            ? post.categories[0] 
+                                            : 'Uncategorized');
+                        
+                        // Create timeline item
+                        const timelineItem = document.createElement('div');
+                        timelineItem.className = 'timeline-item';
+                        timelineItem.innerHTML = `
+                            <div class="timeline-date">${relativeTime}</div>
+                            <div class="timeline-content">
+                                <div class="post-meta">
+                                    <span class="post-category">${category}</span>
+                                </div>
+                                <h3 class="post-title">${post.title || 'Untitled'}</h3>
+                                <p class="post-excerpt">${excerpt}</p>
+                            </div>
+                        `;
+                        
+                        timelineItem.addEventListener('click', (e) => {
+                            if (e.target.closest('.timeline-content')) {
+                                window.location.href = `article.html?id=${post.id}`;
+                            }
+                        });
+                        
+                        timelineEl.appendChild(timelineItem);
+                    });
+                    
+                } catch (error) {
+                    console.error('Error loading user posts:', error);
+                    postsContainer.innerHTML = `
+                        <div class="error-state">
+                            <p>Failed to load posts. Please try again later.</p>
+                        </div>
+                    `;
+                }
+            }
         });
     </script>
 </head>
@@ -93,26 +413,41 @@
 
         <div class="profile-section">
             <div class="profile-avatar"></div>
-            <h2 class="profile-name">Seeker</h2>
-            <p class="profile-bio">Exploring the depths of consciousness</p>
+            <h2 class="profile-name"></h2>
+            <p class="profile-bio"></p>
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card minimal">
                 <span class="stat-value" id="articlesRead">0</span>
-                <span class="stat-label">Articles Read</span>
+                <span class="stat-label">Articles</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card minimal">
                 <span class="stat-value" id="collections">0</span>
                 <span class="stat-label">Collections</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card minimal">
+                <span class="stat-value" id="followers">0</span>
+                <span class="stat-label">Followers</span>
+            </div>
+            <div class="stat-card minimal">
+                <span class="stat-value" id="following">0</span>
+                <span class="stat-label">Following</span>
+            </div>
+            <div class="stat-card minimal">
                 <span class="stat-value" id="notes">0</span>
                 <span class="stat-label">Notes</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card minimal">
                 <span class="stat-value" id="favorites">0</span>
-                <span class="stat-label">Favorites</span>
+                <span class="stat-label">Posts</span>
+            </div>
+        </div>
+        
+        <div class="posts-section">
+            <h2>Your Posts</h2>
+            <div class="user-posts">
+                <!-- Posts will be loaded here -->
             </div>
         </div>
 
